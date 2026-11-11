@@ -45,3 +45,19 @@ Motorista: vê só a própria viagem (view e RPC), não inicia/localiza viagem d
 Cliente: vê só as próprias viagens e documentos **liberados**, não baixa documento não liberado nem de outro cliente, não lê despesas/`trips`/fotos de checklist, não envia arquivos.
 Empresa B: não lê arquivos da A, não se move para A. Operacional: lê só a própria empresa. Ninguém renomeia/altera objetos do Storage.
 Limites: o teste simula o JWT por claims (não é login real pela API); sessão revogada e URL assinada com expiração não foram testadas; o script deste teste não foi salvo no repositório.
+
+## Teste de restauração (11/11/2026)
+
+**O que foi feito:** projeto Supabase separado (`fretebase-restore-teste`) recriado do zero reaplicando, em ordem, as 8 migrations de produção.
+
+**Resultado (comparação produção × restaurado):** idênticos em 41 tabelas, 585 colunas, 8 views, 88 políticas RLS (+2 de Storage), 55 funções (hash do código igual), 56 gatilhos, 78 índices, 41 tabelas com RLS ativo, bucket `comprovantes`, 3 planos e 147 permissões de `anon`/`authenticated` (hash igual).
+
+**O que isto valida:** que o banco (estrutura, regras de acesso e funções) pode ser reconstruído do zero a partir do histórico de migrations.
+
+**O que NÃO foi validado:**
+- Restauração dos DADOS (linhas) — não foram copiados; o teste foi só de estrutura.
+- Backup/PITR nativo do Supabase — indisponível no plano gratuito. Sem plano pago, não há backup automático dos dados.
+- Arquivos do Storage.
+- RTO/RPO medidos: não definidos nem medidos.
+
+**Pendente:** contratar plano com backup diário/PITR e repetir o teste com dados reais antes de comercializar.
