@@ -9,6 +9,7 @@ import { SetupNotice } from "./SetupNotice";
 import { Loading } from "./ui";
 import { SessionCtx, type Member, type OrgInfo } from "@/lib/session";
 import { MfaChallenge } from "./MfaChallenge";
+import { SubscribeButton } from "./SubscribeButton";
 import { syncAlerts } from "@/lib/autoAlerts";
 import { logEvent } from "@/lib/db";
 import { isReader } from "@/lib/permissions";
@@ -73,7 +74,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (enrollPending) router.replace("/conta");
   }, [enrollPending, router]);
-  const blocked = org && (org.status === "suspensa" || org.status === "cancelada");
+  const trialExpired = Boolean(org && org.status === "teste" && org.trial_ends_at && org.trial_ends_at < today());
+  const blocked = org && (org.status === "suspensa" || org.status === "cancelada" || trialExpired);
   const mfaPending = org?.mfa_required;
   const ready2 = memberReady && member && !blocked && !mfaPending && !org?.mfa_enroll_required;
   useEffect(() => {
@@ -103,8 +105,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <main className="grid min-h-screen place-items-center p-6">
         <div className="max-w-md rounded-2xl border border-line bg-white p-8 text-center">
-          <h1 className="text-xl font-extrabold text-pine-950">Acesso {org!.status === "suspensa" ? "suspenso" : "encerrado"}</h1>
-          <p className="mt-2 text-muted">A assinatura desta empresa está {org!.status === "suspensa" ? "suspensa" : "cancelada"}. Os dados continuam guardados e não foram apagados. Fale com a NicoTech para regularizar.</p>
+          <h1 className="text-xl font-extrabold text-pine-950">{trialExpired ? "Período de teste encerrado" : `Acesso ${org!.status === "suspensa" ? "suspenso" : "encerrado"}`}</h1>
+          <p className="mt-2 text-muted">{trialExpired ? "O teste desta empresa terminou." : `A assinatura desta empresa está ${org!.status === "suspensa" ? "suspensa" : "cancelada"}.`} Os dados continuam guardados e não foram apagados.{member.role === "proprietario" || member.role === "admin" ? " Escolha um plano para voltar a usar." : " Peça ao administrador para regularizar."}</p>
+          {(member.role === "proprietario" || member.role === "admin") && org!.status !== "cancelada" && <SubscribeButton />}
           <button type="button" onClick={() => getSupabase()?.auth.signOut()} className="mt-5 min-h-11 rounded-xl border border-line px-5 font-bold">Sair</button>
         </div>
       </main>

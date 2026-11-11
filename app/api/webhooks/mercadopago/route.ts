@@ -1,0 +1,76 @@
+import { NextResponse } from "next/server";
+import { rateLimiter } from "@/lib/webhook";
+import { mapPaymentStatus, parseReference, verifyMpSignature, type Status } from "@/lib/mercadopago";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const allow = rateLimiter(120, 60_000);
+const MP = "https://api.mercadopago.com";
+
+async function mpGet(path: string, token: string) {
+  const r = await fetch(`${MP}${path}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  if (!r.ok) throw new Error(`mp ${r.status}`);
+  return (await r.json()) as Record<string, unknown>;
+}
+
+/**
+ * Webhook do Mercado Pago. Só age com assinatura válida (MP_WEBHOOK_SECRET). Nunca confia no corpo recebido:
+ * busca o pagamento/assinatura na API do Mercado Pago (MP_ACCESS_TOKEN) e grava pelo banco (ingest_payment_event,
+ * idempotente, sem service_role). Sem as variáveis configuradas responde 503 e não faz nada.
+ */
+export async function POST(req: Request) {
+  const mpSecret = process.env.MP_WEBHOOK_SECRET, token = process.env.MP_ACCESS_TOKEN;
+  const dbSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL, anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!mpSecret || !token || !dbSecret || !url || !anon) return NextResponse.json({ error: "não configurado" }, { status: 503 });
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!allow(ip)) return NextResponse.json({ error: "limite excedido" }, { status: 429 });
+
+  const q = new URL(req.url).searchParams;
+  const raw = await req.text();
+  if (raw.length > 64 * 1024) return NextResponse.json({ error: "corpo grande demais" }, { status: 413 });
+  let body: Record<string, unknown> = {};
+  try { body = raw ? JSON.parse(raw) : {}; } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }
+
+  const bodyData = (body.data as { id?: unknown } | undefined)?.id;
+  const dataId = q.get("data.id") ?? (bodyData != null ? String(bodyData) : null);
+  if (!verifyMpSignature({ xSignature: req.headers.get("x-signature"), xRequestId: req.headers.get("x-request-id"), dataId, secret: mpSecret }))
+    return NextResponse.json({ error: "assinatura inválida" }, { status: 401 });
+
+  const topic = String(q.get("type") ?? q.get("topic") ?? body.type ?? "");
+  if (!dataId || !/^[A-Za-z0-9_-]{1,64}$/.test(dataId)) return NextResponse.json({ ok: true, ignored: true });
+
+  let ev: { kind: string; status: Status; amount: number | null; at: string | null; ref: unknown; raw: Record<string, unknown> } | null = null;
+  try {
+    if (topic === "payment") {
+      const p = await mpGet(`/v1/payments/${encodeURIComponent(dataId)}`, token);
+      if (p.currency_id && p.currency_id !== "BRL") return NextResponse.json({ ok: true, ignored: true });
+      ev = { kind: "pagamento", status: mapPaymentStatus(p.status), amount: typeof p.transaction_amount === "number" ? p.transaction_amount : null,
+             at: (p.date_approved ?? p.date_created ?? null) as string | null, ref: p.external_reference, raw: { id: p.id, status: p.status, status_detail: p.status_detail, transaction_amount: p.transaction_amount } };
+    } else if (topic === "subscription_preapproval") {
+      const s = await mpGet(`/preapproval/${encodeURIComponent(dataId)}`, token);
+      const st = String(s.status ?? "");
+      ev = st === "cancelled" ? { kind: "assinatura_cancelada", status: "falhou", amount: null, at: null, ref: s.external_reference, raw: { id: s.id, status: st } }
+         : st === "paused" ? { kind: "assinatura_pausada", status: "falhou", amount: null, at: null, ref: s.external_reference, raw: { id: s.id, status: st } }
+         : { kind: "assinatura", status: "pendente", amount: null, at: null, ref: s.external_reference, raw: { id: s.id, status: st } };
+    } else {
+      return NextResponse.json({ ok: true, ignored: true });
+    }
+  } catch {
+    return NextResponse.json({ error: "falha ao consultar o Mercado Pago" }, { status: 502 }); // o MP tenta de novo
+  }
+
+  const ref = parseReference(ev.ref);
+  const r = await fetch(`${url}/rest/v1/rpc/ingest_payment_event`, {
+    method: "POST",
+    headers: { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_secret: dbSecret, p_provider: "mercadopago", p_event_id: `${topic}:${dataId}:${String(ev.raw.status ?? ev.status)}`, p_org: ref?.orgId ?? null,
+      p_kind: ev.kind, p_status: ev.status, p_amount: ev.amount, p_at: ev.at && !Number.isNaN(Date.parse(ev.at)) ? new Date(ev.at).toISOString() : null,
+      p_raw: { ...ev.raw, fb_plan: ref?.plan ?? null } }),
+  });
+  if (!r.ok) return NextResponse.json({ error: "falha ao registrar" }, { status: 500 });
+  const result = await r.json();
+  return NextResponse.json({ ok: true, duplicate: result === "duplicate" });
+}
