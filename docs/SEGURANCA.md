@@ -39,3 +39,9 @@ privilégios perigosos; views só leitura; tabelas de plataforma só via RPC.
 Restauração de backup não testada; SQL das migrações antigas não exportado para arquivos (usar `supabase db pull`); revogação de sessão só por "sair de todos os dispositivos";
 rate limit de login é o do Supabase Auth (padrão); limitador do webhook é por instância; sem scan de dependências rodado fora do CI; Edge Functions: nenhuma existe;
 confirmação adicional para operações críticas não implementada além da exigência de aal2 para desligar MFA; sem alertas automáticos de atividade suspeita.
+
+## Teste de isolamento por papel e Storage (executado, transação revertida, tokens `authenticated` simulados por claims, sem service_role): 30/30
+Motorista: vê só a própria viagem (view e RPC), não inicia/localiza viagem de outro motorista, não lê `trips`, não lê fiscal, só lê os próprios arquivos, não envia para pasta de outra empresa.
+Cliente: vê só as próprias viagens e documentos **liberados**, não baixa documento não liberado nem de outro cliente, não lê despesas/`trips`/fotos de checklist, não envia arquivos.
+Empresa B: não lê arquivos da A, não se move para A. Operacional: lê só a própria empresa. Ninguém renomeia/altera objetos do Storage.
+Limites: o teste simula o JWT por claims (não é login real pela API); sessão revogada e URL assinada com expiração não foram testadas; o script deste teste não foi salvo no repositório.
