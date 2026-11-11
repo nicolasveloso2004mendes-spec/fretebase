@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-pine-950: #0e2418;
+  --color-pine-900: #14301f;
+  --color-pine-800: #1c432c;
+  --color-pine-700: #2a5c3d;
+  --color-lime-brand: #c6f26b;
+  --color-paper: #f6f7f2;
+  --color-line: #dfe3d6;
+  --color-ink: #16241b;
+  --color-muted: #5b6a5f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+}
+
+html { color-scheme: light; }
+body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); }
+:focus-visible { outline: 3px solid var(--color-pine-700); outline-offset: 2px; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
