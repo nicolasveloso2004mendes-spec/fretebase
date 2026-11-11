@@ -5,8 +5,8 @@ import { Button } from "./ui";
 
 /** Escolhe/fotografa um arquivo e envia para o storage privado. Devolve o caminho via onChange. */
 export function FileField({
-  label, orgId, folder, value, onChange, camera = false,
-}: { label: string; orgId: string; folder: string; value: string | null; onChange: (path: string | null) => void; camera?: boolean }) {
+  label, orgId, folder, value, onChange, camera = false, allowXml = false,
+}: { label: string; orgId: string; folder: string; value: string | null; onChange: (path: string | null) => void; camera?: boolean; allowXml?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -14,12 +14,12 @@ export function FileField({
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
-    const bad = validateFile(f);
+    const bad = validateFile(f, allowXml);
     if (bad) return setErr(bad);
     setBusy(true);
     setErr(null);
     try {
-      onChange(await uploadFile(orgId, folder, f));
+      onChange(await uploadFile(orgId, folder, f, allowXml));
     } catch (x) {
       setErr((x as Error).message);
     }
@@ -32,7 +32,7 @@ export function FileField({
       <div className="mt-1.5 flex flex-wrap items-center gap-3">
         <label className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-line bg-white px-4 font-bold text-ink hover:bg-paper">
           {busy ? "Enviando…" : value ? "Trocar arquivo" : camera ? "Tirar foto / escolher" : "Escolher arquivo"}
-          <input type="file" accept="image/*,application/pdf" capture={camera ? "environment" : undefined} className="sr-only" onChange={pick} disabled={busy} />
+          <input type="file" accept={allowXml ? "image/*,application/pdf,.xml,text/xml" : "image/*,application/pdf"} capture={camera ? "environment" : undefined} className="sr-only" onChange={pick} disabled={busy} />
         </label>
         {value && (
           <>

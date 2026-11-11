@@ -7,7 +7,12 @@ import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 import { Logo } from "./Logo";
 import { SetupNotice } from "./SetupNotice";
 import { Loading } from "./ui";
-import { SessionCtx, type Member } from "@/lib/session";
+import { SessionCtx, type Member, type OrgInfo } from "@/lib/session";
+import { MfaChallenge } from "./MfaChallenge";
+import { syncAlerts } from "@/lib/autoAlerts";
+import { logEvent } from "@/lib/db";
+import { isReader } from "@/lib/permissions";
+import { dateBR, today } from "@/lib/format";
 import { ROLE_LABEL, canOpen, homeFor, navFor, type Role } from "@/lib/permissions";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -18,6 +23,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [member, setMember] = useState<Member | null>(null);
   const [memberReady, setMemberReady] = useState(false);
   const [open, setOpen] = useState(false);
+  const [org, setOrg] = useState<OrgInfo | null>(null);
+  const [orgTick, setOrgTick] = useState(0);
 
   useEffect(() => {
     const sb = getSupabase();
@@ -39,24 +46,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!sb || !session) return;
     let alive = true;
     setMemberReady(false);
-    sb.from("members")
-      .select("org_id, role, full_name, client_id")
-      .eq("user_id", session.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!alive) return;
-        setMember(data ? { orgId: data.org_id, role: data.role as Role, fullName: data.full_name, clientId: data.client_id } : null);
-        setMemberReady(true);
-      });
+    Promise.all([
+      sb.from("members").select("org_id, role, full_name, client_id").eq("user_id", session.user.id).maybeSingle(),
+      sb.rpc("my_org"),
+    ]).then(([{ data }, { data: o }]) => {
+      if (!alive) return;
+      setMember(data ? { orgId: data.org_id, role: data.role as Role, fullName: data.full_name, clientId: data.client_id } : null);
+      setOrg((o as OrgInfo | null) ?? null);
+      setMemberReady(true);
+    });
     return () => {
       alive = false;
     };
-  }, [session]);
+  }, [session, orgTick]);
+
+  useEffect(() => {
+    if (session) logEvent("login");
+  }, [session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const role = member?.role ?? null;
   useEffect(() => {
-    if (memberReady && member && !canOpen(role, pathname)) router.replace(homeFor(role));
-  }, [memberReady, member, role, pathname, router]);
+    if (memberReady && member && !canOpen(role, pathname, org?.superadmin)) router.replace(homeFor(role));
+  }, [memberReady, member, role, pathname, router, org?.superadmin]);
+
+  const blocked = org && (org.status === "suspensa" || org.status === "cancelada");
+  const mfaPending = org?.mfa_required;
+  const ready2 = memberReady && member && !blocked && !mfaPending;
+  useEffect(() => {
+    if (!ready2 || !isReader(role)) return;
+    const k = `fb-alerts-${today()}-${member!.orgId}`;
+    if (sessionStorage.getItem(k)) return;
+    sessionStorage.setItem(k, "1");
+    syncAlerts((org?.settings as { alerts?: object } | undefined)?.alerts).catch(() => sessionStorage.removeItem(k));
+  }, [ready2, role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -72,8 +94,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     );
-  if (!canOpen(role, pathname) && !(role === "cliente")) return <Loading text="Redirecionando…" />;
-  const NAV = navFor(role);
+  if (mfaPending) return <MfaChallenge onDone={() => setOrgTick((n) => n + 1)} />;
+  if (blocked)
+    return (
+      <main className="grid min-h-screen place-items-center p-6">
+        <div className="max-w-md rounded-2xl border border-line bg-white p-8 text-center">
+          <h1 className="text-xl font-extrabold text-pine-950">Acesso {org!.status === "suspensa" ? "suspenso" : "encerrado"}</h1>
+          <p className="mt-2 text-muted">A assinatura desta empresa está {org!.status === "suspensa" ? "suspensa" : "cancelada"}. Os dados continuam guardados e não foram apagados. Fale com a NicoTech para regularizar.</p>
+          <button type="button" onClick={() => getSupabase()?.auth.signOut()} className="mt-5 min-h-11 rounded-xl border border-line px-5 font-bold">Sair</button>
+        </div>
+      </main>
+    );
+  if (!canOpen(role, pathname, org?.superadmin)) return <Loading text="Redirecionando…" />;
+  const NAV = navFor(role, { features: org?.plan?.features, superadmin: org?.superadmin });
+  const trialLeft = org?.status === "teste" && org.trial_ends_at ? Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / 86400000) : null;
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -100,7 +134,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Logo />
         </div>
         <nav aria-label="Principal" className="flex flex-col gap-1">
-          {NAV.map((n) => (
+          {NAV.map((n, i) => (
+            <div key={n.href}>
+              {n.group && n.group !== NAV[i - 1]?.group && role !== "motorista" && role !== "cliente" && (
+                <p className="mb-1 mt-4 px-4 text-[11px] font-bold uppercase tracking-wider text-white/40">{n.group}</p>
+              )}
             <Link
               key={n.href}
               href={n.href}
@@ -111,6 +149,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               {n.label}
             </Link>
+            </div>
           ))}
         </nav>
         <div className="mt-6 border-t border-white/15 pt-4 text-sm lg:mt-auto">
@@ -128,15 +167,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="min-w-0 px-4 py-8 sm:px-8 lg:px-12 lg:py-10">
-        <SessionCtx.Provider value={{ session, member }}>
-          {role === "cliente" ? (
-            <div className="rounded-2xl border border-line bg-white p-8">
-              <h1 className="text-2xl font-extrabold text-pine-950">Portal do cliente</h1>
-              <p className="mt-2 max-w-md text-muted">Seu acesso foi criado. O acompanhamento de cargas por aqui será liberado em uma próxima etapa.</p>
-            </div>
-          ) : (
-            children
+        <SessionCtx.Provider value={{ session, member, org, reloadOrg: () => setOrgTick((n) => n + 1) }}>
+          {trialLeft !== null && (
+            <p role="status" className="no-print mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-warn">
+              {trialLeft >= 0 ? `Período de teste até ${dateBR(org!.trial_ends_at)} (${trialLeft} dia(s)).` : `O período de teste terminou em ${dateBR(org!.trial_ends_at)}. Fale com a NicoTech para contratar um plano.`}
+            </p>
           )}
+          {children}
         </SessionCtx.Provider>
       </main>
     </div>

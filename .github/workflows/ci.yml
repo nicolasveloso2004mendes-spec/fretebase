@@ -1,0 +1,17 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: npm audit --audit-level=high
+      - name: Varredura simples de segredos
+        run: |
+          if git grep -nE "(service_role|sb_secret_|eyJhbGciOi[A-Za-z0-9_-]{40,})" -- . ':!docs' ':!.github' ':!*.md' ':!app/api/webhooks' ':!.env.example'; then echo "possível segredo"; exit 1; fi
