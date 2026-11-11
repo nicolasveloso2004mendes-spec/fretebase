@@ -8,7 +8,7 @@ import { Button, Field, Input } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"entrar" | "criar" | "empresa">("entrar");
+  const [mode, setMode] = useState<"entrar" | "criar" | "empresa" | "recuperar">("entrar");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,6 +32,9 @@ export default function LoginPage() {
       const { error } = await sb.rpc("request_org_signup", { p_company: co.company, p_cnpj: co.cnpj, p_contact: co.contact, p_email: email, p_phone: co.phone });
       if (error) setMsg({ type: "error", text: "Não foi possível enviar o pedido. Confira os dados e tente de novo mais tarde." });
       else setMsg({ type: "ok", text: "Pedido enviado. A NicoTech vai analisar e entrar em contato pelo e-mail informado." });
+    } else if (mode === "recuperar") {
+      await sb.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/redefinir-senha` });
+      setMsg({ type: "ok", text: "Se o e-mail estiver cadastrado, enviamos um link para criar uma nova senha." });
     } else if (mode === "entrar") {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) setMsg({ type: "error", text: "E-mail ou senha incorretos." });
@@ -64,7 +67,7 @@ export default function LoginPage() {
           <div className="lg:hidden">
             <Logo dark />
           </div>
-          <h1 className="text-2xl font-extrabold text-pine-950">{mode === "entrar" ? "Entre no painel" : mode === "criar" ? "Criar conta (com convite)" : "Cadastrar minha transportadora"}</h1>
+          <h1 className="text-2xl font-extrabold text-pine-950">{mode === "entrar" ? "Entre no painel" : mode === "criar" ? "Criar conta (com convite)" : mode === "recuperar" ? "Recuperar senha" : "Cadastrar minha transportadora"}</h1>
           <Field label="E-mail">
             <Input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
@@ -76,7 +79,7 @@ export default function LoginPage() {
               <Field label="Telefone / WhatsApp"><Input type="tel" maxLength={25} value={co.phone} onChange={(e) => setCo({ ...co, phone: e.target.value })} /></Field>
             </>
           )}
-          {mode !== "empresa" && <Field label="Senha">
+          {mode !== "empresa" && mode !== "recuperar" && <Field label="Senha">
             <Input
               type="password"
               required
@@ -92,7 +95,7 @@ export default function LoginPage() {
             </p>
           )}
           <Button type="submit" disabled={busy} className="w-full">
-            {busy ? "Aguarde…" : mode === "entrar" ? "Entrar" : mode === "criar" ? "Criar conta" : "Enviar pedido"}
+            {busy ? "Aguarde…" : mode === "entrar" ? "Entrar" : mode === "criar" ? "Criar conta" : mode === "recuperar" ? "Enviar link" : "Enviar pedido"}
           </Button>
           <button
             type="button"
@@ -104,6 +107,9 @@ export default function LoginPage() {
           >
             {mode === "entrar" ? "Recebi um convite? Criar conta" : "Já tenho conta"}
           </button>
+          {mode === "entrar" && (
+            <button type="button" onClick={() => { setMode("recuperar"); setMsg(null); }} className="min-h-11 w-full text-sm font-semibold text-pine-700 underline-offset-4 hover:underline">Esqueci a senha</button>
+          )}
           {mode === "entrar" && (
             <button type="button" onClick={() => { setMode("empresa"); setMsg(null); }} className="min-h-11 w-full text-sm font-semibold text-pine-700 underline-offset-4 hover:underline">Quero cadastrar minha transportadora</button>
           )}
