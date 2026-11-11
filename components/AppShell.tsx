@@ -69,9 +69,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (memberReady && member && !canOpen(role, pathname, org?.superadmin)) router.replace(homeFor(role));
   }, [memberReady, member, role, pathname, router, org?.superadmin]);
 
+  const enrollPending = Boolean(org?.mfa_enroll_required) && pathname !== "/conta";
+  useEffect(() => {
+    if (enrollPending) router.replace("/conta");
+  }, [enrollPending, router]);
   const blocked = org && (org.status === "suspensa" || org.status === "cancelada");
   const mfaPending = org?.mfa_required;
-  const ready2 = memberReady && member && !blocked && !mfaPending;
+  const ready2 = memberReady && member && !blocked && !mfaPending && !org?.mfa_enroll_required;
   useEffect(() => {
     if (!ready2 || !isReader(role)) return;
     const k = `fb-alerts-${today()}-${member!.orgId}`;
@@ -105,6 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     );
+  if (enrollPending) return <Loading text="Sua empresa exige verificação em duas etapas. Abrindo a ativação…" />;
   if (!canOpen(role, pathname, org?.superadmin)) return <Loading text="Redirecionando…" />;
   const NAV = navFor(role, { features: org?.plan?.features, superadmin: org?.superadmin });
   const trialLeft = org?.status === "teste" && org.trial_ends_at ? Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / 86400000) : null;

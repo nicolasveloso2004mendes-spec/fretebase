@@ -3,13 +3,15 @@ import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { logEvent } from "@/lib/db";
 import { useAppSession } from "@/lib/session";
+import { isAdmin } from "@/lib/permissions";
 import { Notice } from "@/components/extra";
 import { Badge, Button, Card, Field, Input, PageHeader } from "@/components/ui";
 
 type Factor = { id: string; status: string; friendly_name?: string | null };
 
 export default function ContaPage() {
-  const { user } = useAppSession() as { user?: { email?: string | null } };
+  const { session, org, member, reloadOrg } = useAppSession();
+  const user = session.user;
   const [factors, setFactors] = useState<Factor[]>([]);
   const [enroll, setEnroll] = useState<{ id: string; qr: string; secret: string } | null>(null);
   const [code, setCode] = useState("");
@@ -52,6 +54,17 @@ export default function ContaPage() {
     window.location.href = "/login";
   }
   const verified = factors.filter((f) => f.status === "verified");
+  const policyOn = (org?.settings as { mfa_obrigatorio?: string | boolean } | undefined)?.mfa_obrigatorio;
+  const policyActive = policyOn === true || policyOn === "true";
+  async function togglePolicy() {
+    setErr(null); setMsg(null);
+    if (!policyActive && verified.length === 0) return setErr("Ative a sua própria verificação antes de exigir para a equipe.");
+    const sb = getSupabase()!;
+    const settings = { ...(org?.settings ?? {}), mfa_obrigatorio: policyActive ? "false" : "true" };
+    const { error } = await sb.from("orgs").update({ settings }).eq("id", org!.id);
+    if (error) return setErr(error.message.includes("duas etapas") ? "Para desligar, entre com o código de verificação." : "Não foi possível salvar.");
+    logEvent(policyActive ? "mfa_politica_desligada" : "mfa_politica_ligada"); setMsg(policyActive ? "Exigência desligada." : "Exigência ligada para proprietário, administrador e financeiro."); reloadOrg();
+  }
   return (
     <>
       <PageHeader crumb="Conta" title="Minha conta e segurança" subtitle={user?.email ?? undefined} />
@@ -74,6 +87,16 @@ export default function ContaPage() {
           </div>
         )}
       </Card>
+      {org?.mfa_enroll_required && <Notice tone="warn">Sua empresa exige verificação em duas etapas para o seu papel. Ative acima para continuar usando o sistema.</Notice>}
+      {org?.superadmin_candidate && !org.superadmin && <Notice tone="warn">Sua conta é da NicoTech (painel master), que exige verificação em duas etapas. Ative acima e entre de novo para liberar o painel.</Notice>}
+      {member && isAdmin(member.role) && (
+        <Card className="mb-6">
+          <h2 className="font-extrabold text-pine-950">Exigir verificação em duas etapas da equipe</h2>
+          <p className="mt-1 text-sm text-muted">Quando ligado, proprietário, administrador e financeiro só acessam com o código do app. Motoristas e clientes não são afetados. Cada pessoa precisa ativar a própria verificação em “Minha conta”.</p>
+          <p className="mt-3"><Badge tone={policyActive ? "good" : "warn"}>{policyActive ? "Exigida" : "Não exigida"}</Badge></p>
+          <Button className="mt-3" variant={policyActive ? "danger" : "primary"} onClick={togglePolicy}>{policyActive ? "Desligar exigência" : "Exigir da equipe"}</Button>
+        </Card>
+      )}
       <Card>
         <h2 className="font-extrabold text-pine-950">Sessões</h2>
         <p className="mt-1 text-sm text-muted">Se perdeu um aparelho, encerre todas as sessões.</p>

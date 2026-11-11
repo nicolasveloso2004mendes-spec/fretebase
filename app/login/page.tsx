@@ -8,10 +8,11 @@ import { Button, Field, Input } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"entrar" | "criar">("entrar");
+  const [mode, setMode] = useState<"entrar" | "criar" | "empresa">("entrar");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [co, setCo] = useState({ company: "", cnpj: "", contact: "", phone: "" });
   const [msg, setMsg] = useState<{ type: "error" | "ok"; text: string } | null>(null);
 
   useEffect(() => {
@@ -27,7 +28,11 @@ export default function LoginPage() {
     const sb = getSupabase()!;
     setBusy(true);
     setMsg(null);
-    if (mode === "entrar") {
+    if (mode === "empresa") {
+      const { error } = await sb.rpc("request_org_signup", { p_company: co.company, p_cnpj: co.cnpj, p_contact: co.contact, p_email: email, p_phone: co.phone });
+      if (error) setMsg({ type: "error", text: "Não foi possível enviar o pedido. Confira os dados e tente de novo mais tarde." });
+      else setMsg({ type: "ok", text: "Pedido enviado. A NicoTech vai analisar e entrar em contato pelo e-mail informado." });
+    } else if (mode === "entrar") {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) setMsg({ type: "error", text: "E-mail ou senha incorretos." });
       else router.replace("/");
@@ -59,11 +64,19 @@ export default function LoginPage() {
           <div className="lg:hidden">
             <Logo dark />
           </div>
-          <h1 className="text-2xl font-extrabold text-pine-950">{mode === "entrar" ? "Entre no painel" : "Crie sua conta"}</h1>
+          <h1 className="text-2xl font-extrabold text-pine-950">{mode === "entrar" ? "Entre no painel" : mode === "criar" ? "Criar conta (com convite)" : "Cadastrar minha transportadora"}</h1>
           <Field label="E-mail">
             <Input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
-          <Field label="Senha">
+          {mode === "empresa" && (
+            <>
+              <Field label="Nome da transportadora"><Input required maxLength={150} value={co.company} onChange={(e) => setCo({ ...co, company: e.target.value })} /></Field>
+              <Field label="CNPJ"><Input inputMode="numeric" maxLength={18} value={co.cnpj} onChange={(e) => setCo({ ...co, cnpj: e.target.value })} /></Field>
+              <Field label="Seu nome"><Input required maxLength={120} value={co.contact} onChange={(e) => setCo({ ...co, contact: e.target.value })} /></Field>
+              <Field label="Telefone / WhatsApp"><Input type="tel" maxLength={25} value={co.phone} onChange={(e) => setCo({ ...co, phone: e.target.value })} /></Field>
+            </>
+          )}
+          {mode !== "empresa" && <Field label="Senha">
             <Input
               type="password"
               required
@@ -72,14 +85,14 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </Field>
+          </Field>}
           {msg && (
             <p role="alert" className={`text-sm font-semibold ${msg.type === "error" ? "text-danger" : "text-green-800"}`}>
               {msg.text}
             </p>
           )}
           <Button type="submit" disabled={busy} className="w-full">
-            {busy ? "Aguarde…" : mode === "entrar" ? "Entrar" : "Criar conta"}
+            {busy ? "Aguarde…" : mode === "entrar" ? "Entrar" : mode === "criar" ? "Criar conta" : "Enviar pedido"}
           </Button>
           <button
             type="button"
@@ -89,8 +102,11 @@ export default function LoginPage() {
             }}
             className="min-h-11 w-full text-sm font-semibold text-pine-700 underline-offset-4 hover:underline"
           >
-            {mode === "entrar" ? "Primeiro acesso? Criar conta" : "Já tenho conta"}
+            {mode === "entrar" ? "Recebi um convite? Criar conta" : "Já tenho conta"}
           </button>
+          {mode === "entrar" && (
+            <button type="button" onClick={() => { setMode("empresa"); setMsg(null); }} className="min-h-11 w-full text-sm font-semibold text-pine-700 underline-offset-4 hover:underline">Quero cadastrar minha transportadora</button>
+          )}
         </form>
       </section>
     </main>

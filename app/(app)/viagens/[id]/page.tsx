@@ -10,6 +10,7 @@ import { CHECKLIST_ITEMS, EVENT_LABEL, EXPENSE_KIND, canStartTrip, realizedCost,
 import type { Checklist, DeliveryProof, Driver, TripEvent, TripExpense, TripFull, VehicleFull } from "@/lib/types";
 import { Badge, Button, Card, ErrorBox, Field, Input, Loading, PageHeader, Select, Stat, Textarea, linkBtnGhost } from "@/components/ui";
 import { FileField, FileLink } from "@/components/FileField";
+import { TripCompliance } from "@/components/TripCompliance";
 
 export default function ViagemDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -164,6 +165,8 @@ export default function ViagemDetalhe() {
           <p className="mt-2 text-xs text-muted">A entrega não altera o status de pagamento. O recebimento continua sendo confirmado manualmente em Viagens e recebimentos.</p>
         </Card>
       )}
+
+      <TripCompliance tripId={id} quoteId={trip.quote_id} startedAt={(trip as unknown as { started_at?: string | null }).started_at ?? null} delivered={trip.status === "entregue"} />
 
       <Card>
         <h2 className="text-lg font-extrabold text-pine-950">Linha do tempo</h2>

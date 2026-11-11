@@ -11,6 +11,7 @@ import type { Checklist, DriverTrip, TripEvent, TripExpense } from "@/lib/types"
 import { Badge, Button, Card, ErrorBox, Field, Input, Loading, PageHeader, Select, Textarea, linkBtnGhost } from "@/components/ui";
 import { FileField } from "@/components/FileField";
 import { SignaturePad } from "@/components/SignaturePad";
+import { LocationShare } from "@/components/LocationShare";
 
 export default function ViagemMotorista() {
   const { id } = useParams<{ id: string }>();
@@ -96,6 +97,7 @@ export default function ViagemMotorista() {
 
       {open && (
         <>
+          {trip.status === "em_viagem" && <LocationShare tripId={id} />}
           <Card className="mb-6">
             <h2 className="text-lg font-extrabold text-pine-950">Registrar parada, atraso ou ocorrência</h2>
             <form className="mt-3 grid gap-3 sm:grid-cols-3" onSubmit={(e) => { e.preventDefault(); run(() => rpc("driver_add_event", { p_trip: id, p_kind: evt.kind, p_note: evt.note }), () => setEvt({ kind: "ocorrencia", note: "" })); }}>

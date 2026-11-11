@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useTable } from "@/lib/useTable";
 import { dateBR, money, today } from "@/lib/format";
 import type { Order, Quote, Trip } from "@/lib/types";
+import { Onboarding } from "@/components/Onboarding";
 import { Empty, ErrorBox, Loading, PageHeader, Stat, linkBtn } from "@/components/ui";
 
 export default function DashboardPage() {
@@ -30,6 +31,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader crumb="Dashboard" title="Dashboard executivo" subtitle="Acompanhe os resultados e a operação da transportadora." />
+      <Onboarding />
       {loading ? (
         <Loading />
       ) : error ? (

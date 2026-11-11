@@ -9,14 +9,15 @@ const allow = rateLimiter(60, 60_000);
 
 /**
  * Webhook de pagamentos. Só processa com assinatura HMAC válida.
- * Sem PAYMENT_WEBHOOK_SECRET / SUPABASE_SERVICE_ROLE_KEY configurados responde 503 e não faz nada.
+ * Sem PAYMENT_WEBHOOK_SECRET configurado responde 503 e não faz nada. Não usa service_role: grava pela função
+ * ingest_payment_event do banco, que confere o segredo (hash) e é idempotente.
  * Idempotente: o mesmo evento (provedor + id) é gravado uma única vez.
  */
 export async function POST(req: Request) {
   const secret = process.env.PAYMENT_WEBHOOK_SECRET;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!secret || !url || !service) return NextResponse.json({ error: "webhook não configurado" }, { status: 503 });
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!secret || !url || !anon) return NextResponse.json({ error: "webhook não configurado" }, { status: 503 });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (!allow(ip)) return NextResponse.json({ error: "limite excedido" }, { status: 429 });
@@ -34,20 +35,12 @@ export async function POST(req: Request) {
   if (!ev) return NextResponse.json({ error: "evento inválido" }, { status: 400 });
 
   const provider = (req.headers.get("x-provider") ?? "generico").slice(0, 40);
-  const headers = { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" };
-
-  const ins = await fetch(`${url}/rest/v1/subscription_payments?on_conflict=provider,event_id`, {
+  const r = await fetch(`${url}/rest/v1/rpc/ingest_payment_event`, {
     method: "POST",
-    headers: { ...headers, Prefer: "resolution=ignore-duplicates,return=representation" },
-    body: JSON.stringify({ provider, event_id: ev.eventId, org_id: ev.orgId, kind: ev.kind, status: ev.status, amount: ev.amount, occurred_at: ev.occurredAt }),
+    headers: { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_secret: secret, p_provider: provider, p_event_id: ev.eventId, p_org: ev.orgId, p_kind: ev.kind, p_status: ev.status, p_amount: ev.amount, p_at: ev.occurredAt, p_raw: body }),
   });
-  if (!ins.ok) return NextResponse.json({ error: "falha ao registrar" }, { status: 500 });
-  const created = (await ins.json()) as unknown[];
-  if (created.length === 0) return NextResponse.json({ ok: true, duplicate: true });
-
-  // Ativa a empresa somente em pagamento confirmado e verificado.
-  if (ev.orgId && ev.status === "confirmado") {
-    await fetch(`${url}/rest/v1/orgs?id=eq.${ev.orgId}`, { method: "PATCH", headers, body: JSON.stringify({ status: "ativa" }) });
-  }
-  return NextResponse.json({ ok: true });
+  if (!r.ok) return NextResponse.json({ error: "falha ao registrar" }, { status: r.status === 400 ? 400 : 500 });
+  const result = await r.json();
+  return NextResponse.json({ ok: true, duplicate: result === "duplicate" });
 }

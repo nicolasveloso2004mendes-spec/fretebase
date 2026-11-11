@@ -21,3 +21,21 @@ sem integração real de WhatsApp, fiscal, pagamento ou rastreador; webhook exig
 
 ## Migrações
 Aplicadas e versionadas no Supabase (`supabase_migrations.schema_migrations`, 7 versões). Exportar para o repositório: `supabase db pull`. Rollback: restaurar backup/branch; não há SQL de rollback escrito (pendente).
+
+
+## Atualização — hardening aplicado (migração `fase7_hardening_privilegios_webhook_mfa`)
+Achados da auditoria: `anon` tinha grants totais em todas as tabelas (RLS bloqueava, mas era defesa em profundidade ausente);
+`authenticated` tinha TRUNCATE/REFERENCES/TRIGGER e escrita em views (`driver_trips`). Corrigido: anon sem acesso a tabelas; authenticated sem
+privilégios perigosos; views só leitura; tabelas de plataforma só via RPC.
+- **Webhook sem service_role:** rota valida HMAC-SHA256 e chama `ingest_payment_event`, que confere o hash do segredo, é idempotente
+  (provedor + id do evento) e só ativa empresa com status `confirmado`. Status aceitos: pendente, confirmado, falhou, estornado.
+- **MFA:** superadmin exige sessão aal2 sempre; proprietário/admin/financeiro por política da empresa (Minha conta → exigir da equipe, desligada por padrão); desligar a exigência requer aal2.
+- **Teste pós-hardening (transação revertida): 28 de 29 aprovados**; a 29ª foi premissa errada do teste (auditoria só registra UPDATE/DELETE em cadastros). `supabase/tests/fase7_hardening_rls.sql`.
+- **Views `client_*`/`driver_trips`:** mantidas como SECURITY DEFINER por decisão (filtram por empresa/cliente/motorista; converter para invoker exigiria abrir SELECT nas tabelas-base ao cliente, o que expõe custos). Risco residual: um erro de filtro numa view vira vazamento — por isso há teste.
+- **CSP** ativa (script-src com 'unsafe-inline' por exigência do Next; sem nonce).
+- Rollback: `supabase/migrations/20261111180000_fase7_hardening_ROLLBACK.sql`.
+
+## Não feito / pendente (honesto)
+Restauração de backup não testada; SQL das migrações antigas não exportado para arquivos (usar `supabase db pull`); revogação de sessão só por "sair de todos os dispositivos";
+rate limit de login é o do Supabase Auth (padrão); limitador do webhook é por instância; sem scan de dependências rodado fora do CI; Edge Functions: nenhuma existe;
+confirmação adicional para operações críticas não implementada além da exigência de aal2 para desligar MFA; sem alertas automáticos de atividade suspeita.

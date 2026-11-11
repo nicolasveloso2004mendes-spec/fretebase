@@ -4,7 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTable } from "@/lib/useTable";
 import { getSupabase } from "@/lib/supabase";
 import { computeTrip, suggestedFreight } from "@/lib/calc";
-import { km, money, pct, toNumber } from "@/lib/format";
+import { km, money, pct, today, toNumber } from "@/lib/format";
+import { computeTax, insuranceCheck, pickTaxRule, ufOf, type Policy, type TaxRule } from "@/lib/compliance";
 import type { Client, Order, Vehicle } from "@/lib/types";
 import { Button, Card, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 
@@ -57,6 +58,11 @@ export function Simulator() {
   const clients = useTable<Client>("clients", { order: "name" });
   const vehicles = useTable<Vehicle>("vehicles", { order: "name" });
   const [f, setF] = useState<F>(blank);
+  const rules = useTable<TaxRule>("tax_rules");
+  const policies = useTable<Policy>("insurance_policies");
+  const [cargoValue, setCargoValue] = useState("");
+  const [validDays, setValidDays] = useState("7");
+  const [ruleOff, setRuleOff] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,6 +117,15 @@ export function Simulator() {
     [f],
   );
 
+  const picked = ruleOff ? null : pickTaxRule(rules.rows, ufOf(f.origin), ufOf(f.destination), today());
+  const taxCalc = picked && toNumber(f.freight) > 0 ? computeTax(picked, toNumber(f.freight), toNumber(f.tolls)) : null;
+  const ins = insuranceCheck(policies.rows, cargoValue ? toNumber(cargoValue) : null, today());
+  const validUntil = toNumber(validDays) > 0 ? new Date(Date.now() + toNumber(validDays) * 86400000).toISOString().slice(0, 10) : null;
+  function applyRule() {
+    if (!taxCalc || toNumber(f.freight) <= 0) return;
+    setF((p) => ({ ...p, tax: String(Math.round((taxCalc.tax / toNumber(p.freight)) * 10000) / 100) }));
+  }
+
   const suggestion = suggestedFreight(r.cost, toNumber(f.tax), toNumber(f.margin));
   const hasFreight = toNumber(f.freight) > 0;
   const ready = f.origin.trim() && f.destination.trim() && toNumber(f.distance) > 0 && hasFreight;
@@ -142,6 +157,11 @@ export function Simulator() {
         cost_total: r.cost + r.tax,
         profit: r.profit,
         terms: f.terms.trim() || null,
+        cargo_value: cargoValue ? toNumber(cargoValue) : null,
+        valid_until: validUntil,
+        tax_rule_id: picked?.id ?? null,
+        tax_rule_version: picked?.version ?? null,
+        tax_rule_snapshot: picked ? { ...picked, calculo: taxCalc, aplicado_pct: toNumber(f.tax) } : null,
       })
       .select("id")
       .single();
@@ -320,6 +340,18 @@ export function Simulator() {
                 <dd className="font-semibold">{money(r.costPerKm)}</dd>
               </div>
             </dl>
+            <div className="mt-4 space-y-3 border-t border-line pt-4 text-sm">
+              <Field label="Valor da carga (R$) — para conferir seguro"><Input inputMode="decimal" value={cargoValue} onChange={(e) => setCargoValue(e.target.value)} /></Field>
+              <p className="text-xs text-muted">Seguro: {ins.text} O sistema nunca confirma cobertura; confirme com a seguradora.</p>
+              {picked ? (
+                <div className="rounded-xl bg-paper p-3">
+                  <p className="font-semibold">Regra fiscal: {picked.name} (v{picked.version}) — {picked.rate_pct}% sobre o frete{picked.base === "valor_frete_menos_pedagio" ? " menos pedágio" : ""}</p>
+                  {taxCalc && <p className="mt-1 text-xs text-muted">Base {money(taxCalc.base)} · imposto {money(taxCalc.tax)}{taxCalc.retention ? ` · retenção ${money(taxCalc.retention)}` : ""}. Parâmetro configurável; valide com seu contador.</p>}
+                  <div className="mt-2 flex flex-wrap gap-2"><Button variant="ghost" onClick={applyRule} disabled={!taxCalc}>Aplicar no campo de imposto</Button><Button variant="ghost" onClick={() => setRuleOff(true)}>Não usar regra</Button></div>
+                </div>
+              ) : <p className="text-xs text-muted">{ruleOff ? "Regra fiscal desativada nesta cotação." : "Nenhuma regra fiscal cadastrada para esta rota: usando o percentual digitado. Cadastre em Configurações."}{ruleOff && <button type="button" className="ml-2 underline" onClick={() => setRuleOff(false)}>reativar</button>}</p>}
+              <Field label="Validade da proposta (dias)"><Input inputMode="numeric" value={validDays} onChange={(e) => setValidDays(e.target.value)} /></Field>
+            </div>
             {error && <p role="alert" className="mt-4 text-sm font-semibold text-danger">{error}</p>}
             <Button className="mt-5 w-full" disabled={!ready || busy} onClick={save}>
               {busy ? "Salvando…" : "Salvar e revisar proposta →"}

@@ -8,7 +8,7 @@ export type OrgInfo = {
   id: string; name: string; legal_name: string | null; trade_name: string | null; cnpj: string | null; phone: string | null; email: string | null;
   status: "teste" | "ativa" | "suspensa" | "cancelada"; trial_ends_at: string | null; settings: Record<string, unknown>;
   plan: { code: string; name: string; features: string[]; max_users: number | null; max_vehicles: number | null; ai_queries_month: number | null; price_month: number | null } | null;
-  mfa_required: boolean; superadmin: boolean;
+  mfa_required: boolean; mfa_enroll_required?: boolean; superadmin: boolean; superadmin_candidate?: boolean;
 };
 export type Ctx = { session: Session; member: Member | null; org: OrgInfo | null; reloadOrg: () => void };
 
