@@ -149,3 +149,12 @@ describe("regressão Fases 1 e 2 (cálculo de frete)", () => {
     expect(toNumber("abc")).toBe(0);
   });
 });
+
+describe("custo previsto sem imposto (evita descontar o imposto duas vezes)", () => {
+  it("cotação 3885,91 + imposto 276 vira planned_cost 3885,91 e resultado igual à sobra da cotação", async () => {
+    const { plannedCostWithoutTax, tripResult } = await import("@/lib/fleet");
+    const planned = plannedCostWithoutTax(4161.91, 276);
+    expect(planned).toBe(3885.91);
+    expect(tripResult({ freight_value: 4600, planned_cost: planned, tax_value: 276 }, []).result).toBeCloseTo(438.09, 2);
+  });
+});

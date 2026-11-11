@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { dateBR, km, money, today } from "@/lib/format";
+import { plannedCostWithoutTax } from "@/lib/fleet";
 import type { Quote, QuoteStatus } from "@/lib/types";
 import { Badge, Button, Card, ErrorBox, Field, Input, Loading, PageHeader, linkBtnGhost } from "@/components/ui";
 
@@ -42,6 +43,7 @@ export default function CotacaoPage() {
     if (!error && status === "aprovada") {
       const { data: existing } = await sb.from("trips").select("id").eq("quote_id", q.id).limit(1);
       if (!existing?.length) {
+        const taxValue = Math.round(q.freight_value * (q.tax_pct / 100) * 100) / 100;
         await sb.from("trips").insert({
           quote_id: q.id,
           client_id: q.client_id,
@@ -52,8 +54,8 @@ export default function CotacaoPage() {
           cost_total: q.cost_total,
           cargo: q.cargo,
           distance_km: q.distance_km,
-          planned_cost: q.cost_total,
-          tax_value: Math.round(q.freight_value * (q.tax_pct / 100) * 100) / 100,
+          planned_cost: plannedCostWithoutTax(q.cost_total, taxValue), // o imposto fica só em tax_value (senão é descontado duas vezes)
+          tax_value: taxValue,
         });
       }
     }

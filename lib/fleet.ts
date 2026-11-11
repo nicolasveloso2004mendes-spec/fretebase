@@ -137,6 +137,11 @@ export function realizedCost(expenses: Expense[]) {
 }
 
 /** Resultado após custos reais: frete − custo real − imposto previsto. Sem despesas lançadas, usa o previsto (e avisa). */
+/** Custo previsto da viagem SEM imposto: a cotação guarda custo + imposto, e o imposto já é descontado à parte (tax_value). */
+export function plannedCostWithoutTax(costTotal: number, taxValue: number) {
+  return Math.round((Number(costTotal) - Number(taxValue)) * 100) / 100;
+}
+
 export function tripResult(trip: { freight_value: number; planned_cost: number; tax_value: number }, expenses: Expense[]) {
   const real = realizedCost(expenses);
   const hasReal = expenses.length > 0;
