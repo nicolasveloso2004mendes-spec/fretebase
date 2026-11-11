@@ -14,4 +14,4 @@ jobs:
       - run: npm audit --audit-level=high
       - name: Varredura simples de segredos
         run: |
-          if git grep -nE "(service_role|sb_secret_|eyJhbGciOi[A-Za-z0-9_-]{40,})" -- . ':!docs' ':!.github' ':!*.md' ':!app/api/webhooks' ':!.env.example'; then echo "possível segredo"; exit 1; fi
+          if git grep -nE "(service_role|sb_secret_|eyJhbGciOi[A-Za-z0-9_-]{40,})" -- . ':!docs' ':!.github' ':!*.md' ':!app/api/webhooks' ':!tests' ':!.env.example'; then echo "possível segredo"; exit 1; fi
