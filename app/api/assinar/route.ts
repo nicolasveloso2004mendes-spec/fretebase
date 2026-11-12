@@ -44,13 +44,14 @@ export async function POST(req: Request) {
     body: JSON.stringify({
       reason: `Fretebase — plano ${pl.name}`,
       external_reference: buildReference(member.org_id, pl.code),
-      payer_email: user.email,
+      payer_email: process.env.MP_TEST_PAYER_EMAIL || user.email, // MP_TEST_PAYER_EMAIL: só para testes com conta compradora de teste do Mercado Pago
       back_url: `${base}/`,
       status: "pending",
       auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: Number(pl.price_month), currency_id: "BRL" },
     }),
   });
-  const d = (await r.json().catch(() => ({}))) as { init_point?: string };
+  const d = (await r.json().catch(() => ({}))) as { init_point?: string; message?: string; error?: string; cause?: unknown };
+  if (!r.ok || !d.init_point) console.error("mercadopago preapproval falhou", r.status, JSON.stringify({ message: d.message, error: d.error, cause: d.cause }).slice(0, 500));
   if (!r.ok || !d.init_point) return NextResponse.json({ error: "O Mercado Pago não criou a assinatura. Tente de novo." }, { status: 502 });
   return NextResponse.json({ url: d.init_point });
 }
