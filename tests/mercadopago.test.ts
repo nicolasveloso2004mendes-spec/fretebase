@@ -96,6 +96,20 @@ describe("rota /api/webhooks/mercadopago", () => {
     const rpc = f.mock.calls.find((c) => String(c[0]).includes("/rpc/"))!;
     expect(JSON.parse(String((rpc[1] as RequestInit).body))).toMatchObject({ p_org: ORG, p_kind: "assinatura_cancelada" });
   });
+  it("cobrança recorrente aprovada (subscription_authorized_payment) confirma e acha a empresa pela assinatura/plano", async () => {
+    const f = vi.spyOn(globalThis, "fetch").mockImplementation(async (u) => {
+      const url = String(u);
+      if (url.includes("/authorized_payments/")) return new Response(JSON.stringify({ id: 77, preapproval_id: "p9", status: "processed", transaction_amount: 5, currency_id: "BRL", payment: { id: 5551, status: "approved" } }));
+      if (url.includes("/preapproval_plan/")) return new Response(JSON.stringify({ external_reference: `${ORG}:essencial` }));
+      if (url.includes("/preapproval/")) return new Response(JSON.stringify({ id: "p9", status: "authorized", preapproval_plan_id: "pl9", external_reference: "" }));
+      return new Response(JSON.stringify("ok"));
+    });
+    await call({ dataId: "77", type: "subscription_authorized_payment", sig: sign("77", "r1", "1700000000") });
+    const rpc = f.mock.calls.find((c) => String(c[0]).includes("/rpc/"))!;
+    const b = JSON.parse(String((rpc[1] as RequestInit).body));
+    expect(b).toMatchObject({ p_org: ORG, p_status: "confirmado", p_kind: "pagamento", p_amount: 5 });
+    expect(b.p_raw.fb_plan).toBe("essencial");
+  });
   it("502 se o Mercado Pago não responde (ele tenta de novo)", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
     expect((await call()).status).toBe(502);

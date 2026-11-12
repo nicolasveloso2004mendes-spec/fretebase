@@ -62,6 +62,18 @@ export async function POST(req: Request) {
       if (!parseReference(pref) && typeof pre === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(pre)) pref = await subscriptionRef(await mpGet(`/preapproval/${encodeURIComponent(pre)}`, token), token);
       ev = { kind: "pagamento", status: mapPaymentStatus(p.status), amount: typeof p.transaction_amount === "number" ? p.transaction_amount : null,
              at: (p.date_approved ?? p.date_created ?? null) as string | null, ref: pref, raw: { id: p.id, status: p.status, status_detail: p.status_detail, transaction_amount: p.transaction_amount } };
+    } else if (topic === "subscription_authorized_payment") {
+      // Cobrança recorrente de uma assinatura: o pagamento dela está dentro de "payment"; a empresa vem da assinatura (preapproval_id).
+      const a = await mpGet(`/authorized_payments/${encodeURIComponent(dataId)}`, token);
+      if (a.currency_id && a.currency_id !== "BRL") return NextResponse.json({ ok: true, ignored: true });
+      const pay = a.payment as { id?: unknown; status?: unknown } | undefined;
+      const pst = String(pay?.status ?? a.status ?? "");
+      const pre = typeof a.preapproval_id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(a.preapproval_id) ? a.preapproval_id : null;
+      const aref = pre ? await subscriptionRef(await mpGet(`/preapproval/${encodeURIComponent(pre)}`, token), token) : null;
+      const status: Status = a.status === "cancelled" ? "falhou" : mapPaymentStatus(pst);
+      const when = (a.debit_date ?? a.date_created ?? null) as string | null;
+      ev = { kind: "pagamento", status, amount: typeof a.transaction_amount === "number" ? a.transaction_amount : null, at: when, ref: aref,
+             raw: { id: a.id, status: pst, preapproval_id: pre, payment_id: pay?.id ?? null } };
     } else if (topic === "subscription_preapproval") {
       const s = await mpGet(`/preapproval/${encodeURIComponent(dataId)}`, token);
       const st = String(s.status ?? "");
