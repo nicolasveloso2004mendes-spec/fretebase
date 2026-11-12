@@ -1,0 +1,25 @@
+drop function if exists public.app_has_feature(text) cascade;
+drop policy if exists plan_feature on public.maintenance_records;
+drop policy if exists plan_feature on public.fuel_logs;
+drop policy if exists plan_feature on public.tire_events;
+drop policy if exists plan_feature on public.insurance_claims;
+drop policy if exists plan_feature on public.insurers;
+drop policy if exists plan_feature on public.message_templates;
+drop policy if exists plan_feature on public.message_log;
+drop policy if exists plan_feature on public.assistant_queries;
+drop policy if exists plan_feature_ins on public.tires;
+drop policy if exists plan_feature_upd on public.tires;
+drop policy if exists plan_feature_del on public.tires;
+drop policy if exists plan_feature_ins on public.insurance_policies;
+drop policy if exists plan_feature_upd on public.insurance_policies;
+drop policy if exists plan_feature_del on public.insurance_policies;
+drop policy if exists plan_feature_ins on public.fiscal_documents;
+drop policy if exists plan_feature_upd on public.fiscal_documents;
+drop policy if exists plan_feature_del on public.fiscal_documents;
+drop policy if exists plan_feature_ins on public.ciot_records;
+drop policy if exists plan_feature_upd on public.ciot_records;
+drop policy if exists plan_feature_del on public.ciot_records;
+drop policy if exists plan_feature_ins on public.toll_records;
+drop policy if exists plan_feature_upd on public.toll_records;
+drop policy if exists plan_feature_del on public.toll_records;
+-- restaurar plan_limit_users sem as checagens de motorista/cliente (ver 20261111...)
