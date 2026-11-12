@@ -100,5 +100,16 @@ export async function POST(req: Request) {
   });
   if (!r.ok) return NextResponse.json({ error: "falha ao registrar" }, { status: 500 });
   const result = await r.json();
+  // Troca imediata de plano: a nova assinatura foi autorizada, então cancelamos a antiga no Mercado Pago.
+  if (typeof result === "string" && result.startsWith("replaced:")) {
+    const oldId = result.slice("replaced:".length);
+    if (/^[A-Za-z0-9_-]{1,64}$/.test(oldId)) {
+      const c = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(oldId)}`, {
+        method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled" }),
+      }).catch(() => null);
+      if (!c || !c.ok) console.error("troca imediata: não consegui cancelar a assinatura antiga no Mercado Pago", oldId, c?.status ?? "sem resposta");
+      else console.info("troca imediata: assinatura antiga cancelada", oldId);
+    }
+  }
   return NextResponse.json({ ok: true, duplicate: result === "duplicate" });
 }

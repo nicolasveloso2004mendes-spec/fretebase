@@ -29,6 +29,15 @@ export default function AssinaturaPage() {
     setBusy(null);
   }
 
+  async function now(code: string) {
+    setBusy(`now:${code}`); setMsg(null);
+    const { data } = (await getSupabase()?.auth.getSession()) ?? { data: { session: null } };
+    const r = await fetch("/api/assinatura/mudar-agora", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body: JSON.stringify({ plan: code }) });
+    const j = (await r.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (r.ok && j.url) { window.location.href = j.url; return; }
+    setMsg(j.error ?? "Não foi possível abrir o pagamento."); setBusy(null);
+  }
+
   const current = plans.find((p) => p.code === org?.plan?.code);
   return (
     <>
@@ -40,10 +49,10 @@ export default function AssinaturaPage() {
       </Card>
       <div className="mt-4">
         {pending && <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-900">Troca para o plano {plans.find((x) => x.code === pending)?.name ?? pending} solicitada. Ela vale quando a próxima cobrança for aprovada.</p>}
-        <PlanCards plans={plans} currentCode={org?.plan?.code} pendingCode={pending} busy={busy} onSubscribe={canChange ? change : undefined} actionLabel={(p) => `Mudar para ${p.name}`} />
+        <PlanCards plans={plans} currentCode={org?.plan?.code} pendingCode={pending} busy={busy} onSubscribe={canChange ? change : undefined} onNow={canChange ? now : undefined} actionLabel={(p) => ((p.price_month ?? 0) > (current?.price_month ?? Infinity) ? `Mudar na próxima cobrança` : `Mudar para ${p.name} na próxima cobrança`)} />
         {msg && <p role="status" className="mt-3 text-sm font-semibold">{msg}</p>}
         {!canChange && <p className="mt-3 text-sm text-muted">Só o proprietário ou administrador pode mudar o plano{org?.status !== "ativa" ? ", e a empresa precisa estar com a assinatura ativa" : ""}.</p>}
-        <p className="mt-3 text-xs text-muted">O novo valor vale a partir da próxima cobrança; o plano muda quando ela for aprovada.</p>
+        <p className="mt-3 text-xs text-muted">"Mudar agora" abre um novo pagamento: o plano muda assim que ele for aprovado e a assinatura antiga é cancelada (sem desconto dos dias já pagos). "Na próxima cobrança" só altera o valor da renovação.</p>
       </div>
     </>
   );

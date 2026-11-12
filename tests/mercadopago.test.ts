@@ -206,3 +206,66 @@ describe("rota /api/assinatura/mudar-plano", () => {
     expect(rpcBodies(f).map((b) => b.p_plan)).toEqual(["premium", null]);
   });
 });
+
+describe("rota /api/assinatura/mudar-agora", () => {
+  const env = { ...process.env };
+  beforeEach(() => { Object.assign(process.env, { MP_ACCESS_TOKEN: "TEST-token", PAYMENT_WEBHOOK_SECRET: "x".repeat(40), NEXT_PUBLIC_SUPABASE_URL: "https://db.test", NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon" }); });
+  afterEach(() => { process.env = { ...env }; vi.restoreAllMocks(); vi.resetModules(); });
+  const post = async (plan: unknown) => {
+    const { POST } = await import("@/app/api/assinatura/mudar-agora/route");
+    return POST(new Request("https://x.test/api/assinatura/mudar-agora", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tok" }, body: JSON.stringify({ plan }) }));
+  };
+  const mock = (o: { cur?: number; mpOk?: boolean } = {}) => vi.spyOn(globalThis, "fetch").mockImplementation(async (u) => {
+    const url = String(u);
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: "u1" }));
+    if (url.includes("/rest/v1/members")) return new Response(JSON.stringify([{ org_id: ORG, role: "proprietario" }]));
+    if (url.includes("/rest/v1/orgs")) return new Response(JSON.stringify([{ status: "ativa", plan: { code: "essencial", price_month: o.cur ?? 5 } }]));
+    if (url.includes("/rest/v1/plans")) return new Response(JSON.stringify([{ code: "premium", name: "Premium", price_month: 15 }]));
+    if (url.includes("/rpc/set_pending_plan")) return new Response('"ok"');
+    if (url.includes("api.mercadopago.com/preapproval_plan")) return o.mpOk === false ? new Response("{}", { status: 400 }) : new Response(JSON.stringify({ init_point: "https://mp.test/pay" }));
+    return new Response("{}", { status: 404 });
+  });
+  const pend = (f: ReturnType<typeof mock>) => f.mock.calls.filter((c) => String(c[0]).includes("set_pending_plan")).map((c) => JSON.parse(String((c[1] as RequestInit).body)).p_plan);
+  it("marca o plano pendente e abre o checkout do plano novo (preço do banco, referência org:plano)", async () => {
+    const f = mock();
+    const r = await post("premium");
+    expect((await r.json()).url).toBe("https://mp.test/pay");
+    expect(pend(f)).toEqual(["premium"]);
+    const mp = f.mock.calls.find((c) => String(c[0]).endsWith("/preapproval_plan"))!;
+    const b = JSON.parse(String((mp[1] as RequestInit).body));
+    expect(b.external_reference).toBe(`${ORG}:premium`);
+    expect(b.auto_recurring.transaction_amount).toBe(15);
+  });
+  it("só para plano mais caro; recusa igual ou mais barato sem tocar no Mercado Pago", async () => {
+    const f = mock({ cur: 20 });
+    expect((await post("premium")).status).toBe(400);
+    expect(f.mock.calls.some((c) => String(c[0]).includes("api.mercadopago.com"))).toBe(false);
+    expect(pend(f)).toEqual([]);
+  });
+  it("se o Mercado Pago não abre o pagamento, desfaz o plano pendente", async () => {
+    const f = mock({ mpOk: false });
+    expect((await post("premium")).status).toBe(502);
+    expect(pend(f)).toEqual(["premium", null]);
+  });
+});
+
+describe("webhook: troca imediata cancela a assinatura antiga", () => {
+  const env = { ...process.env };
+  afterEach(() => { process.env = { ...env }; vi.restoreAllMocks(); vi.resetModules(); });
+  it("quando o banco devolve replaced:<id>, cancela só essa assinatura no Mercado Pago", async () => {
+    Object.assign(process.env, { MP_WEBHOOK_SECRET: SECRET, MP_ACCESS_TOKEN: "TEST-token", PAYMENT_WEBHOOK_SECRET: "x".repeat(40), NEXT_PUBLIC_SUPABASE_URL: "https://db.test", NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon" });
+    const f = vi.spyOn(globalThis, "fetch").mockImplementation(async (u) => {
+      const url = String(u);
+      if (url.includes("api.mercadopago.com/preapproval/NEW1")) return new Response(JSON.stringify({ id: "NEW1", status: "authorized", external_reference: `${ORG}:premium` }));
+      if (url.includes("/rpc/ingest_payment_event")) return new Response('"replaced:OLD1"');
+      if (url.includes("api.mercadopago.com/preapproval/OLD1")) return new Response("{}");
+      return new Response("{}", { status: 404 });
+    });
+    const { POST } = await import("@/app/api/webhooks/mercadopago/route");
+    const ts = "1704908010";
+    const r = await POST(new Request("https://x.test/api/webhooks/mercadopago?type=subscription_preapproval&data.id=NEW1", { method: "POST", headers: { "x-signature": sign("NEW1", "r1", ts), "x-request-id": "r1", "content-type": "application/json" }, body: "{}" }));
+    expect(r.status).toBe(200);
+    const c = f.mock.calls.find((x) => String(x[0]).includes("preapproval/OLD1") && (x[1] as RequestInit)?.method === "PUT")!;
+    expect(JSON.parse(String((c[1] as RequestInit).body))).toEqual({ status: "cancelled" });
+  });
+});

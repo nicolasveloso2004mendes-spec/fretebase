@@ -1,0 +1,1 @@
+-- restaurar ingest_payment_event de 20261112140000_troca_de_plano.sql

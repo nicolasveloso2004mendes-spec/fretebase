@@ -14,7 +14,7 @@ export function usePlans() {
 }
 
 /** Cartões de plano: preço, o que está incluído e, quando houver, botão de assinar. */
-export function PlanCards({ plans, currentCode, pendingCode, busy, onSubscribe, actionLabel }: { plans: PlanRow[]; currentCode?: string | null; pendingCode?: string | null; busy?: string | null; onSubscribe?: (code: string) => void; actionLabel?: (p: PlanRow) => string }) {
+export function PlanCards({ plans, currentCode, pendingCode, busy, onSubscribe, onNow, actionLabel }: { plans: PlanRow[]; currentCode?: string | null; pendingCode?: string | null; busy?: string | null; onSubscribe?: (code: string) => void; onNow?: (code: string) => void; actionLabel?: (p: PlanRow) => string }) {
   return (
     <div className="grid gap-3 text-left md:grid-cols-3">
       {plans.map((p, i) => {
@@ -32,10 +32,14 @@ export function PlanCards({ plans, currentCode, pendingCode, busy, onSubscribe, 
               ))}
             </ul>
             {onSubscribe && (
-              currentCode === p.code ? null : (
-              <button type="button" disabled={!p.price_month || !!busy || pendingCode === p.code} onClick={() => onSubscribe(p.code)} className="mt-4 min-h-11 rounded-xl bg-pine-900 px-4 font-bold text-white disabled:opacity-50">
+              currentCode === p.code ? null : (<>
+              {onNow && (p.price_month ?? 0) > (plans.find((x) => x.code === currentCode)?.price_month ?? Infinity) && (
+                <button type="button" disabled={!!busy} onClick={() => onNow(p.code)} className="mt-4 min-h-11 rounded-xl bg-lime-brand px-4 font-bold text-pine-950 disabled:opacity-50">
+                  {busy === `now:${p.code}` ? "Abrindo pagamento…" : "Mudar agora"}
+                </button>)}
+              <button type="button" disabled={!p.price_month || !!busy || pendingCode === p.code} onClick={() => onSubscribe(p.code)} className="mt-2 min-h-11 rounded-xl bg-pine-900 px-4 font-bold text-white disabled:opacity-50">
                 {busy === p.code ? "Aguarde…" : pendingCode === p.code ? "Troca já solicitada" : actionLabel ? actionLabel(p) : `Assinar ${p.name}`}
-              </button>)
+              </button></>)
             )}
           </div>
         );
