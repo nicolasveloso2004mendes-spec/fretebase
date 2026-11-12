@@ -14,5 +14,5 @@ export const FEATURE_INFO: Record<string, { label: string; desc: string }> = {
   portal_cliente: { label: "Portal do cliente", desc: "Seu cliente acompanha entregas e pede cotações" },
   integracoes: { label: "Integrações", desc: "Conexão com outros sistemas" },
   bi: { label: "Análises avançadas (BI)", desc: "Painéis avançados de resultado" },
-  assistente: { label: "Fretebase AI", desc: "Assistente de inteligência artificial" },
+  assistente: { label: "Fretebase AI", desc: "Perguntas sobre a sua operação. A versão com inteligência artificial está em lançamento (em breve)." },
 };
