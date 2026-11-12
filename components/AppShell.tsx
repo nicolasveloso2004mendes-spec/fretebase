@@ -136,7 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <aside
         id="menu"
-        className={`no-print bg-pine-900 p-5 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col ${open ? "block" : "hidden lg:flex"}`}
+        className={`no-print bg-pine-900 p-5 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:overflow-y-auto ${open ? "block" : "hidden lg:flex"}`}
       >
         <div className="mb-8 hidden lg:block">
           <Logo />
