@@ -7,6 +7,7 @@ import { DEFAULT_ALERTS, DEFAULT_CIOT_RULES, DEFAULT_ETA, type CiotType } from "
 import { CIOT_TYPE } from "@/lib/compliance";
 import { dateBR, toNumber } from "@/lib/format";
 import { Notice, Table, Tabs, Td } from "@/components/extra";
+import { PlanCards, usePlans } from "@/components/PlanCards";
 import { Badge, Button, Card, Field, Input, Loading, PageHeader, Select, Textarea } from "@/components/ui";
 
 type Rule = { id: string; name: string; regime: string | null; uf_origin: string | null; uf_dest: string | null; service_nature: string | null; taker_type: string | null; base: string; rate_pct: number; retention_pct: number; benefit_note: string | null; reform_note: string | null; validated_by: string | null; valid_from: string | null; valid_to: string | null; version: number; active: boolean };
@@ -80,7 +81,9 @@ function Company() {
     const { error } = await getSupabase()!.from("orgs").update({ legal_name: v.legal_name || null, trade_name: v.trade_name || null, name: v.trade_name || v.legal_name || org!.name, cnpj: cnpj || null, phone: v.phone || null, email: v.email || null }).eq("id", org!.id);
     setMsg(error ? "Não foi possível salvar." : "Dados salvos."); if (!error) reloadOrg();
   }
+  const plans = usePlans();
   return (
+    <div className="grid gap-4">
     <Card><form onSubmit={save} className="grid gap-4 sm:grid-cols-2"><h2 className="text-lg font-extrabold text-pine-950 sm:col-span-2">Dados da transportadora</h2>
       <Field label="Razão social"><Input value={v.legal_name} onChange={(e) => setV({ ...v, legal_name: e.target.value })} /></Field>
       <Field label="Nome fantasia"><Input value={v.trade_name} onChange={(e) => setV({ ...v, trade_name: e.target.value })} /></Field>
@@ -89,6 +92,8 @@ function Company() {
       <Field label="E-mail de contato"><Input type="email" value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} /></Field>
       <p className="self-end text-sm text-muted">Plano: <b>{org?.plan?.name ?? "—"}</b> · Situação: <b>{org?.status}</b>. Plano e situação só são alterados pela NicoTech.</p>
       {msg && <p role="status" className="text-sm font-semibold sm:col-span-2">{msg}</p>}<div className="sm:col-span-2"><Button type="submit">Salvar</Button></div></form></Card>
+    <Card><h2 className="mb-3 text-lg font-extrabold text-pine-950">Planos e o que cada um inclui</h2><PlanCards plans={plans} currentCode={org?.plan?.code} /></Card>
+    </div>
   );
 }
 

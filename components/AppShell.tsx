@@ -104,7 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (blocked)
     return (
       <main className="grid min-h-screen place-items-center p-6">
-        <div className="max-w-md rounded-2xl border border-line bg-white p-8 text-center">
+        <div className="w-full max-w-4xl rounded-2xl border border-line bg-white p-8 text-center">
           <h1 className="text-xl font-extrabold text-pine-950">{trialExpired ? "Período de teste encerrado" : `Acesso ${org!.status === "suspensa" ? "suspenso" : "encerrado"}`}</h1>
           <p className="mt-2 text-muted">{trialExpired ? "O teste desta empresa terminou." : `A assinatura desta empresa está ${org!.status === "suspensa" ? "suspensa" : "cancelada"}.`} Os dados continuam guardados e não foram apagados.{member.role === "proprietario" || member.role === "admin" ? " Escolha um plano para voltar a usar." : " Peça ao administrador para regularizar."}</p>
           {(member.role === "proprietario" || member.role === "admin") && org!.status !== "cancelada" && <SubscribeButton />}
