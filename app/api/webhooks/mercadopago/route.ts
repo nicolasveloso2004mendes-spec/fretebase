@@ -46,9 +46,10 @@ export async function POST(req: Request) {
   const bodyData = (body.data as { id?: unknown } | undefined)?.id;
   const dataId = q.get("data.id") ?? (bodyData != null ? String(bodyData) : null);
   if (!verifyMpSignature({ xSignature: req.headers.get("x-signature"), xRequestId: req.headers.get("x-request-id"), dataId, secret: mpSecret }))
-    return NextResponse.json({ error: "assinatura inválida" }, { status: 401 });
+    { console.warn("mp webhook: assinatura inválida", { dataId, hasSig: !!req.headers.get("x-signature"), hasReqId: !!req.headers.get("x-request-id") }); return NextResponse.json({ error: "assinatura inválida" }, { status: 401 }); }
 
   const topic = String(q.get("type") ?? q.get("topic") ?? body.type ?? "");
+  console.info("mp webhook recebido", { topic, dataId });
   if (!dataId || !/^[A-Za-z0-9_-]{1,64}$/.test(dataId)) return NextResponse.json({ ok: true, ignored: true });
 
   let ev: { kind: string; status: Status; amount: number | null; at: string | null; ref: unknown; raw: Record<string, unknown> } | null = null;
@@ -69,9 +70,11 @@ export async function POST(req: Request) {
          : st === "paused" ? { kind: "assinatura_pausada", status: "falhou", amount: null, at: null, ref: sref, raw: { id: s.id, status: st } }
          : { kind: "assinatura", status: "pendente", amount: null, at: null, ref: sref, raw: { id: s.id, status: st } };
     } else {
+      console.info("mp webhook: tópico ignorado", topic);
       return NextResponse.json({ ok: true, ignored: true });
     }
-  } catch {
+  } catch (e) {
+    console.error("mp webhook: falha ao consultar o Mercado Pago", topic, dataId, e instanceof Error ? e.message : "");
     return NextResponse.json({ error: "falha ao consultar o Mercado Pago" }, { status: 502 }); // o MP tenta de novo
   }
 
