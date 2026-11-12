@@ -17,6 +17,8 @@ describe("assinatura do Mercado Pago", () => {
     expect(verifyMpSignature({ xSignature: s, xRequestId: "req-2", dataId: "123", secret: SECRET })).toBe(false);
     expect(verifyMpSignature({ xSignature: s, xRequestId: "req-1", dataId: "123", secret: "outro-segredo" })).toBe(false);
     expect(verifyMpSignature({ xSignature: "lixo", xRequestId: "req-1", dataId: "123", secret: SECRET })).toBe(false);
+    expect(verifyMpSignature({ xSignature: sign("ABC123", "req-1", "1704908010"), xRequestId: "req-1", dataId: "ABC123", secret: `outro-segredo-1,${SECRET}` })).toBe(true);
+    expect(verifyMpSignature({ xSignature: sign("ABC123", "req-1", "1704908010"), xRequestId: "req-1", dataId: "ABC123", secret: "errado-um-1,errado-dois-2" })).toBe(false);
     expect(verifyMpSignature({ xSignature: null, xRequestId: "req-1", dataId: "123", secret: SECRET })).toBe(false);
     expect(verifyMpSignature({ xSignature: s, xRequestId: "req-1", dataId: "123", secret: undefined })).toBe(false);
   });

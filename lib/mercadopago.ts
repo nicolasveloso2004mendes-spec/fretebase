@@ -5,7 +5,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * Manifest: "id:<data.id em minúsculas>;request-id:<x-request-id>;ts:<ts>;" — pares ausentes são omitidos.
  */
 export function verifyMpSignature(a: { xSignature: string | null | undefined; xRequestId: string | null | undefined; dataId: string | null | undefined; secret: string | null | undefined }) {
-  if (!a.secret || a.secret.length < 8 || !a.xSignature) return false;
+  if (!a.secret || !a.xSignature) return false;
+  // Aceita vários segredos separados por vírgula (modo de teste e de produção do Mercado Pago).
+  const secrets = a.secret.split(",").map((x) => x.trim()).filter((x) => x.length >= 8);
+  if (!secrets.length) return false;
   let ts = "", v1 = "";
   for (const part of a.xSignature.split(",")) {
     const i = part.indexOf("=");
@@ -19,9 +22,11 @@ export function verifyMpSignature(a: { xSignature: string | null | undefined; xR
   if (a.dataId) manifest += `id:${a.dataId.toLowerCase()};`;
   if (a.xRequestId) manifest += `request-id:${a.xRequestId};`;
   manifest += `ts:${ts};`;
-  const expected = createHmac("sha256", a.secret).update(manifest, "utf8").digest();
   const given = Buffer.from(v1, "hex");
-  return given.length === expected.length && timingSafeEqual(given, expected);
+  return secrets.some((sec) => {
+    const expected = createHmac("sha256", sec).update(manifest, "utf8").digest();
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  });
 }
 
 export type Status = "pendente" | "confirmado" | "falhou" | "estornado";
