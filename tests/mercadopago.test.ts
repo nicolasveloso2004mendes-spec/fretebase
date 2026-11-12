@@ -166,3 +166,43 @@ describe("rota /api/assinar", () => {
     expect(b.auto_recurring.currency_id).toBe("BRL");
   });
 });
+
+describe("rota /api/assinatura/mudar-plano", () => {
+  const env = { ...process.env };
+  beforeEach(() => { Object.assign(process.env, { MP_ACCESS_TOKEN: "TEST-token", PAYMENT_WEBHOOK_SECRET: "x".repeat(40), NEXT_PUBLIC_SUPABASE_URL: "https://db.test", NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon" }); });
+  afterEach(() => { process.env = { ...env }; vi.restoreAllMocks(); vi.resetModules(); });
+  const post = async (plan: unknown) => {
+    const { POST } = await import("@/app/api/assinatura/mudar-plano/route");
+    return POST(new Request("https://x.test/api/assinatura/mudar-plano", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tok" }, body: JSON.stringify({ plan }) }));
+  };
+  const mock = (o: { role?: string; org?: object; mpOk?: boolean } = {}) => vi.spyOn(globalThis, "fetch").mockImplementation(async (u) => {
+    const url = String(u);
+    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: "u1" }));
+    if (url.includes("/rest/v1/members")) return new Response(JSON.stringify([{ org_id: ORG, role: o.role ?? "proprietario" }]));
+    if (url.includes("/rest/v1/orgs")) return new Response(JSON.stringify([o.org ?? { status: "ativa", mp_preapproval_id: "abc123", plan: { code: "essencial" } }]));
+    if (url.includes("/rest/v1/plans")) return new Response(JSON.stringify([{ code: "premium", name: "Premium", price_month: 15 }]));
+    if (url.includes("/rpc/set_pending_plan")) return new Response('"ok"');
+    if (url.includes("api.mercadopago.com/preapproval/")) return new Response("{}", { status: o.mpOk === false ? 400 : 200 });
+    return new Response("{}", { status: 404 });
+  });
+  const rpcBodies = (f: ReturnType<typeof mock>) => f.mock.calls.filter((c) => String(c[0]).includes("set_pending_plan")).map((c) => JSON.parse(String((c[1] as RequestInit).body)));
+  it("só proprietário/admin troca; precisa de assinatura ativa; não troca para o mesmo plano", async () => {
+    mock({ role: "operacional" }); expect((await post("premium")).status).toBe(403);
+    vi.restoreAllMocks(); mock({ org: { status: "ativa", mp_preapproval_id: null, plan: { code: "essencial" } } }); expect((await post("premium")).status).toBe(409);
+    vi.restoreAllMocks(); mock({ org: { status: "ativa", mp_preapproval_id: "abc123", plan: { code: "premium" } } }); expect((await post("premium")).status).toBe(400);
+  });
+  it("marca o plano pendente e altera o valor da assinatura existente (preço do banco)", async () => {
+    const f = mock();
+    const r = await post("premium");
+    expect(r.status).toBe(200);
+    expect(rpcBodies(f)).toEqual([{ p_secret: "x".repeat(40), p_org: ORG, p_plan: "premium" }]);
+    const mp = f.mock.calls.find((c) => String(c[0]).includes("api.mercadopago.com/preapproval/abc123"))!;
+    expect((mp[1] as RequestInit).method).toBe("PUT");
+    expect(JSON.parse(String((mp[1] as RequestInit).body)).auto_recurring).toEqual({ transaction_amount: 15, currency_id: "BRL" });
+  });
+  it("se o Mercado Pago recusa, o plano pendente é desfeito", async () => {
+    const f = mock({ mpOk: false });
+    expect((await post("premium")).status).toBe(502);
+    expect(rpcBodies(f).map((b) => b.p_plan)).toEqual(["premium", null]);
+  });
+});

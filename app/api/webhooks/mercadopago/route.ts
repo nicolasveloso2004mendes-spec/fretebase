@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       const pre = (p.metadata as { preapproval_id?: unknown } | undefined)?.preapproval_id;
       if (!parseReference(pref) && typeof pre === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(pre)) pref = await subscriptionRef(await mpGet(`/preapproval/${encodeURIComponent(pre)}`, token), token);
       ev = { kind: "pagamento", status: mapPaymentStatus(p.status), amount: typeof p.transaction_amount === "number" ? p.transaction_amount : null,
-             at: (p.date_approved ?? p.date_created ?? null) as string | null, ref: pref, raw: { id: p.id, status: p.status, status_detail: p.status_detail, transaction_amount: p.transaction_amount } };
+             at: (p.date_approved ?? p.date_created ?? null) as string | null, ref: pref, raw: { id: p.id, status: p.status, status_detail: p.status_detail, transaction_amount: p.transaction_amount, preapproval_id: typeof pre === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(pre) ? pre : null } };
     } else if (topic === "subscription_authorized_payment") {
       // Cobrança recorrente de uma assinatura: o pagamento dela está dentro de "payment"; a empresa vem da assinatura (preapproval_id).
       const a = await mpGet(`/authorized_payments/${encodeURIComponent(dataId)}`, token);

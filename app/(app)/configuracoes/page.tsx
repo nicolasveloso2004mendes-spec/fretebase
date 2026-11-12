@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTable } from "@/lib/useTable";
 import { getSupabase } from "@/lib/supabase";
 import { useAppSession } from "@/lib/session";
@@ -82,6 +82,23 @@ function Company() {
     setMsg(error ? "Não foi possível salvar." : "Dados salvos."); if (!error) reloadOrg();
   }
   const plans = usePlans();
+  const { member } = useAppSession();
+  const canChange = (member?.role === "proprietario" || member?.role === "admin") && org?.status === "ativa";
+  const [busyPlan, setBusyPlan] = useState<string | null>(null);
+  const [planMsg, setPlanMsg] = useState<string | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => {
+    if (!org?.id) return;
+    getSupabase()?.from("orgs").select("pending_plan_code").eq("id", org.id).maybeSingle().then(({ data }) => setPending((data as { pending_plan_code: string | null } | null)?.pending_plan_code ?? null));
+  }, [org?.id, planMsg]);
+  async function changePlan(code: string) {
+    setBusyPlan(code); setPlanMsg(null);
+    const { data } = (await getSupabase()?.auth.getSession()) ?? { data: { session: null } };
+    const r = await fetch("/api/assinatura/mudar-plano", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body: JSON.stringify({ plan: code }) });
+    const j = (await r.json().catch(() => ({}))) as { message?: string; error?: string };
+    setPlanMsg(r.ok ? (j.message ?? "Troca registrada.") : (j.error ?? "Não foi possível trocar o plano."));
+    setBusyPlan(null);
+  }
   return (
     <div className="grid gap-4">
     <Card><form onSubmit={save} className="grid gap-4 sm:grid-cols-2"><h2 className="text-lg font-extrabold text-pine-950 sm:col-span-2">Dados da transportadora</h2>
@@ -92,7 +109,9 @@ function Company() {
       <Field label="E-mail de contato"><Input type="email" value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} /></Field>
       <p className="self-end text-sm text-muted">Plano: <b>{org?.plan?.name ?? "—"}</b> · Situação: <b>{org?.status}</b>. Plano e situação só são alterados pela NicoTech.</p>
       {msg && <p role="status" className="text-sm font-semibold sm:col-span-2">{msg}</p>}<div className="sm:col-span-2"><Button type="submit">Salvar</Button></div></form></Card>
-    <Card><h2 className="mb-3 text-lg font-extrabold text-pine-950">Planos e o que cada um inclui</h2><PlanCards plans={plans} currentCode={org?.plan?.code} /></Card>
+    <Card><h2 className="mb-3 text-lg font-extrabold text-pine-950">Planos e o que cada um inclui</h2>{pending && <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-900">Troca para o plano {plans.find((x) => x.code === pending)?.name ?? pending} solicitada. Ela vale quando a próxima cobrança for aprovada.</p>}
+      <PlanCards plans={plans} currentCode={org?.plan?.code} pendingCode={pending} busy={busyPlan} onSubscribe={canChange ? changePlan : undefined} actionLabel={(p) => `Mudar para ${p.name}`} />
+      {planMsg && <p role="status" className="mt-3 text-sm font-semibold">{planMsg}</p>}</Card>
     </div>
   );
 }
