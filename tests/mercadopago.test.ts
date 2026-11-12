@@ -85,6 +85,17 @@ describe("rota /api/webhooks/mercadopago", () => {
     expect(bodies[0]).toMatchObject({ p_status: "pendente", p_kind: "pagamento" });
     expect(bodies[1]).toMatchObject({ p_status: "falhou", p_kind: "assinatura_cancelada" });
   });
+  it("assinatura criada a partir de plano: acha a empresa pelo plano", async () => {
+    const f = vi.spyOn(globalThis, "fetch").mockImplementation(async (u) => {
+      const url = String(u);
+      if (url.includes("/preapproval_plan/")) return new Response(JSON.stringify({ id: "pl1", external_reference: `${ORG}:essencial` }));
+      if (url.includes("/preapproval/")) return new Response(JSON.stringify({ id: "p2", status: "cancelled", preapproval_plan_id: "pl1", external_reference: "" }));
+      return new Response(JSON.stringify("ok"));
+    });
+    await call({ dataId: "p2", type: "subscription_preapproval", sig: sign("p2", "r1", "1700000000") });
+    const rpc = f.mock.calls.find((c) => String(c[0]).includes("/rpc/"))!;
+    expect(JSON.parse(String((rpc[1] as RequestInit).body))).toMatchObject({ p_org: ORG, p_kind: "assinatura_cancelada" });
+  });
   it("502 se o Mercado Pago não responde (ele tenta de novo)", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
     expect((await call()).status).toBe(502);
@@ -131,7 +142,9 @@ describe("rota /api/assinar", () => {
     const r = await post("premium");
     expect((await r.json()).url).toBe("https://mp.test/pay");
     const mp = f.mock.calls.find((c) => String(c[0]).includes("api.mercadopago.com/preapproval"))!;
+    expect(String(mp[0])).toBe("https://api.mercadopago.com/preapproval_plan");
     const b = JSON.parse(String((mp[1] as RequestInit).body));
+    expect(b.payer_email).toBeUndefined();
     expect(b.external_reference).toBe(`${ORG}:premium`);
     expect(b.auto_recurring.transaction_amount).toBe(149.9);
     expect(b.auto_recurring.currency_id).toBe("BRL");

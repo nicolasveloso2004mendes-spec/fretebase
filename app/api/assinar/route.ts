@@ -37,21 +37,23 @@ export async function POST(req: Request) {
   const pl = ((await p.json()) as { code: string; name: string; price_month: number | null }[])?.[0];
   if (!pl || !pl.price_month || pl.price_month <= 0) return NextResponse.json({ error: "Este plano ainda não tem preço definido." }, { status: 400 });
 
+  // Assinatura com plano associado: criamos um plano marcado com "<empresa>:<plano>" e levamos ao checkout do plano.
+  // O pagador se identifica no próprio Mercado Pago (não enviamos e-mail dele). O webhook volta da assinatura ao plano e à empresa.
   const base = process.env.APP_URL ?? "https://fretebase-nicotech.vercel.app";
-  const r = await fetch("https://api.mercadopago.com/preapproval", {
+  const r = await fetch("https://api.mercadopago.com/preapproval_plan", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       reason: `Fretebase — plano ${pl.name}`,
       external_reference: buildReference(member.org_id, pl.code),
-      payer_email: process.env.MP_TEST_PAYER_EMAIL || user.email, // MP_TEST_PAYER_EMAIL: só para testes com conta compradora de teste do Mercado Pago
       back_url: `${base}/`,
-      status: "pending",
       auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: Number(pl.price_month), currency_id: "BRL" },
     }),
   });
   const d = (await r.json().catch(() => ({}))) as { init_point?: string; message?: string; error?: string; cause?: unknown };
-  if (!r.ok || !d.init_point) console.error("mercadopago preapproval falhou", r.status, JSON.stringify({ message: d.message, error: d.error, cause: d.cause }).slice(0, 500));
-  if (!r.ok || !d.init_point) return NextResponse.json({ error: "O Mercado Pago não criou a assinatura. Tente de novo." }, { status: 502 });
+  if (!r.ok || !d.init_point) {
+    console.error("mercadopago preapproval_plan falhou", r.status, JSON.stringify({ message: d.message, error: d.error, cause: d.cause }).slice(0, 500));
+    return NextResponse.json({ error: "O Mercado Pago não criou a assinatura. Tente de novo." }, { status: 502 });
+  }
   return NextResponse.json({ url: d.init_point });
 }

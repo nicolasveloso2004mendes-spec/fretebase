@@ -14,6 +14,15 @@ async function mpGet(path: string, token: string) {
   return (await r.json()) as Record<string, unknown>;
 }
 
+/** external_reference da assinatura; se vazio (assinatura criada a partir de plano), vem do plano que nós criamos. */
+async function subscriptionRef(s: Record<string, unknown>, token: string): Promise<unknown> {
+  if (parseReference(s.external_reference)) return s.external_reference;
+  const planId = typeof s.preapproval_plan_id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(s.preapproval_plan_id) ? s.preapproval_plan_id : null;
+  if (!planId) return s.external_reference;
+  const pl = await mpGet(`/preapproval_plan/${encodeURIComponent(planId)}`, token);
+  return pl.external_reference;
+}
+
 /**
  * Webhook do Mercado Pago. Só age com assinatura válida (MP_WEBHOOK_SECRET). Nunca confia no corpo recebido:
  * busca o pagamento/assinatura na API do Mercado Pago (MP_ACCESS_TOKEN) e grava pelo banco (ingest_payment_event,
@@ -47,14 +56,18 @@ export async function POST(req: Request) {
     if (topic === "payment") {
       const p = await mpGet(`/v1/payments/${encodeURIComponent(dataId)}`, token);
       if (p.currency_id && p.currency_id !== "BRL") return NextResponse.json({ ok: true, ignored: true });
+      let pref: unknown = p.external_reference;
+      const pre = (p.metadata as { preapproval_id?: unknown } | undefined)?.preapproval_id;
+      if (!parseReference(pref) && typeof pre === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(pre)) pref = await subscriptionRef(await mpGet(`/preapproval/${encodeURIComponent(pre)}`, token), token);
       ev = { kind: "pagamento", status: mapPaymentStatus(p.status), amount: typeof p.transaction_amount === "number" ? p.transaction_amount : null,
-             at: (p.date_approved ?? p.date_created ?? null) as string | null, ref: p.external_reference, raw: { id: p.id, status: p.status, status_detail: p.status_detail, transaction_amount: p.transaction_amount } };
+             at: (p.date_approved ?? p.date_created ?? null) as string | null, ref: pref, raw: { id: p.id, status: p.status, status_detail: p.status_detail, transaction_amount: p.transaction_amount } };
     } else if (topic === "subscription_preapproval") {
       const s = await mpGet(`/preapproval/${encodeURIComponent(dataId)}`, token);
       const st = String(s.status ?? "");
-      ev = st === "cancelled" ? { kind: "assinatura_cancelada", status: "falhou", amount: null, at: null, ref: s.external_reference, raw: { id: s.id, status: st } }
-         : st === "paused" ? { kind: "assinatura_pausada", status: "falhou", amount: null, at: null, ref: s.external_reference, raw: { id: s.id, status: st } }
-         : { kind: "assinatura", status: "pendente", amount: null, at: null, ref: s.external_reference, raw: { id: s.id, status: st } };
+      const sref = await subscriptionRef(s, token);
+      ev = st === "cancelled" ? { kind: "assinatura_cancelada", status: "falhou", amount: null, at: null, ref: sref, raw: { id: s.id, status: st } }
+         : st === "paused" ? { kind: "assinatura_pausada", status: "falhou", amount: null, at: null, ref: sref, raw: { id: s.id, status: st } }
+         : { kind: "assinatura", status: "pendente", amount: null, at: null, ref: sref, raw: { id: s.id, status: st } };
     } else {
       return NextResponse.json({ ok: true, ignored: true });
     }
