@@ -58,6 +58,7 @@ export function navFor(role: Role | null, opts: { features?: string[] | null; su
     ];
     if (isAdmin(role)) {
       base.push({ href: "/equipe", label: "Equipe e motoristas", group: "Conta" });
+      base.push({ href: "/assinatura", label: "Assinatura e plano", group: "Conta" });
       base.push({ href: "/configuracoes", label: "Configurações", group: "Conta" });
       base.push({ href: "/privacidade", label: "Privacidade (LGPD)", group: "Conta" });
     }
@@ -73,7 +74,7 @@ export function canOpen(role: Role | null, path: string, superadmin = false) {
   if (role === "motorista") return path.startsWith("/motorista");
   if (role === "cliente") return path.startsWith("/portal") || path.startsWith("/conta");
   if (path.startsWith("/portal")) return false;
-  if (["/equipe", "/configuracoes", "/privacidade"].some((p) => path.startsWith(p))) return isAdmin(role);
+  if (["/equipe", "/configuracoes", "/privacidade", "/assinatura"].some((p) => path.startsWith(p))) return isAdmin(role);
   if (path.startsWith("/motorista")) return false;
   return isReader(role);
 }
