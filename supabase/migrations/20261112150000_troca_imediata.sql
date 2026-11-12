@@ -3,7 +3,7 @@
 -- a cobrança aprovada tem o valor do plano pendente. O cancelamento da antiga não suspende a empresa.
 create or replace function public.ingest_payment_event(p_secret text, p_provider text, p_event_id text, p_org uuid, p_kind text, p_status text, p_amount numeric, p_at timestamp with time zone, p_raw jsonb)
 returns text language plpgsql security definer set search_path to 'public' as $$
-declare h text; n int; pid uuid; pend text; matched boolean := false; cur text; v_code text; v_new text;
+declare h text; n int; pid uuid; pend text; matched boolean := false; cur text; v_code text; v_new text; recent_swap boolean;
 begin
   select s.hash into h from public.platform_secrets s where s.name = 'payment_webhook';
   if h is null or length(coalesce(p_secret, '')) < 32 or encode(sha256(convert_to(p_secret, 'UTF8')), 'hex') <> h then
@@ -37,7 +37,10 @@ begin
     v_new := p_raw->>'id';
     update public.orgs set mp_preapproval_id = v_new where id = p_org;
     -- troca imediata em andamento: a assinatura antiga deve ser cancelada pelo servidor
-    if pend is not null and cur is not null and cur <> v_new then
+    -- o pagamento pode chegar antes do aviso da assinatura nova: vale também uma troca aprovada na última hora
+    recent_swap := pend is not null or exists (select 1 from public.platform_audit
+      where target = p_org::text and action = 'webhook_pagamento_confirmado' and details->>'troca_de_plano' = 'true' and created_at > now() - interval '1 hour');
+    if recent_swap and cur is not null and cur <> v_new then
       insert into public.platform_audit(admin_user, action, target, details)
       values ('00000000-0000-0000-0000-000000000000', 'webhook_assinatura_substituida', p_org::text, jsonb_build_object('antiga', cur, 'nova', v_new));
       return 'replaced:' || cur;
