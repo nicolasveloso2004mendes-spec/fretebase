@@ -27,3 +27,10 @@ body { background: var(--color-paper); color: var(--color-ink); font-family: var
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Menu lateral: o fundo verde cobre a coluna inteira e o menu rola por dentro quando é maior que a tela. */
+@media (min-width: 64rem) {
+  .app-shell { background: linear-gradient(to right, var(--color-pine-900) 17rem, transparent 17rem); }
+  .app-sidebar { overflow-y: auto; }
+}
+@media print { .app-shell { background: none; } }

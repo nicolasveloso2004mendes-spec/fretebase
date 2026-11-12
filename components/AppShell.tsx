@@ -120,7 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
-    <div className="lg:grid lg:min-h-screen lg:grid-cols-[17rem_1fr] lg:bg-[linear-gradient(to_right,var(--color-pine-900)_17rem,transparent_17rem)] print:bg-none">
+    <div className="app-shell lg:grid lg:min-h-screen lg:grid-cols-[17rem_1fr]">
       <div className="no-print sticky top-0 z-30 flex items-center justify-between bg-pine-900 px-4 py-3 lg:hidden">
         <Logo />
         <button
@@ -136,7 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <aside
         id="menu"
-        className={`no-print bg-pine-900 p-5 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:overflow-y-auto ${open ? "block" : "hidden lg:flex"}`}
+        className={`app-sidebar no-print bg-pine-900 p-5 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col ${open ? "block" : "hidden lg:flex"}`}
       >
         <div className="mb-8 hidden lg:block">
           <Logo />
