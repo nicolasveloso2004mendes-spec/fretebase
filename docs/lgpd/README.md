@@ -16,9 +16,14 @@
 - **NicoTech** = operadora: trata os dados em nome da transportadora, seguindo as instruções dela.
 - **Suboperadores usados hoje:** Supabase (banco, autenticação e arquivos — projeto na região São Paulo), Vercel (hospedagem do aplicativo), Brevo (envio de e-mails do sistema) e Mercado Pago (cobrança da assinatura; só dados de quem paga).
 
-## Pendências para você (NicoTech)
-1. Razão social, CNPJ e endereço da NicoTech.
-2. Nome e e-mail do **encarregado** (contato de privacidade). Pode ser você.
-3. Advogado para revisar os 4 textos.
-4. Confirmar onde o Vercel executa as funções (hoje há execução fora do Brasil → tratar como possível transferência internacional no contrato).
+## Dados já preenchidos
+- Operadora: 69.667.882 NICOLAS VELOSO MENDES (nome fantasia NicoTech) — CNPJ 69.667.882/0001-40.
+- Encarregado: Nicolas Veloso Mendes — contato.nicotech@gmail.com.
+
+## O que ainda falta
+1. **Endereço** da NicoTech (aparece como `[ENDEREÇO]`).
+2. Trechos marcados **"padrão sugerido"** (prazos de 24 h, 30 e 90 dias, foro em Guarulhos, regra de cancelamento): conferir se você aceita.
+3. Trechos marcados **"advogado"**: dependem de revisão jurídica.
+4. Confirmar onde a Vercel executa as funções (hoje há execução fora do Brasil).
 5. Contratar o plano pago do Supabase (backup).
+6. Publicar a Política e os Termos em páginas públicas **só depois** da revisão do advogado.

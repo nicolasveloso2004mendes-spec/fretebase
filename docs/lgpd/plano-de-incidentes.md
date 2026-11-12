@@ -11,11 +11,11 @@
 Anotar na tela **Privacidade (LGPD) → Incidentes**: o que aconteceu, quando, quais dados, quantos titulares, quais empresas, risco para os titulares.
 
 ## 3. Comunicar
-- A **transportadora (controladora)** deve ser avisada **sem demora** [definir prazo no contrato, ex.: 24 horas].
+- A **transportadora (controladora)** deve ser avisada **sem demora** em até 24 horas.
 - A controladora decide sobre comunicar a **ANPD** e os **titulares** quando houver risco ou dano relevante. Prazo de referência da ANPD: **3 dias úteis** a partir do conhecimento do incidente (confirmar com o advogado).
 
 ## 4. Corrigir e aprender
 - Corrigir a causa, restaurar dados (por isso o backup é obrigatório antes de vender).
 - Registrar a lição aprendida e atualizar este plano.
 
-**Contato do encarregado:** [NOME] — [E-MAIL]
+**Contato do encarregado:** Nicolas Veloso Mendes — contato.nicotech@gmail.com
