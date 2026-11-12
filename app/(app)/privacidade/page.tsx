@@ -11,7 +11,7 @@ const INVENTORY = [
   ["Motoristas", "nome, telefone, categoria e validade da CNH", "execução de contrato de trabalho/serviço; obrigação legal", "enquanto vigorar o vínculo + prazos legais"],
   ["Clientes (contatos)", "nome, telefone, e-mail, condições de pagamento", "execução de contrato; legítimo interesse", "enquanto houver relação comercial + prazos fiscais"],
   ["Usuários do sistema", "e-mail, nome, papel de acesso", "execução de contrato", "enquanto a conta estiver ativa"],
-  ["Localização do motorista", "coordenadas durante a viagem, só com consentimento e viagem em andamento", "consentimento (revogável a qualquer momento)", "definir política (sugestão: poucos dias após a entrega)"],
+  ["Localização do motorista", "coordenadas durante a viagem, só com consentimento e viagem em andamento", "consentimento (revogável a qualquer momento)", "30 dias após o registro (apagada automaticamente)"],
   ["Documentos fiscais e comprovantes", "XML, PDF, fotos e assinaturas de recebimento", "obrigação legal; execução de contrato", "prazos fiscais aplicáveis"],
 ];
 
@@ -31,7 +31,7 @@ export default function PrivacidadePage() {
   return (
     <>
       <PageHeader crumb="Conta" title="Privacidade (LGPD)" subtitle="Inventário de dados, solicitações de titulares e incidentes." />
-      <Notice tone="warn">Este módulo ajuda a <b>organizar</b> o tratamento de dados pessoais. Ele não garante conformidade com a LGPD: bases legais, prazos de retenção e textos precisam ser revisados por profissional jurídico. Modelos de documentos estão na pasta <code>docs/</code> do repositório.</Notice>
+      <Notice tone="warn">Este módulo ajuda a <b>organizar</b> o tratamento de dados pessoais. Ele não garante conformidade com a LGPD: bases legais, prazos de retenção e textos precisam ser revisados por profissional jurídico. Rascunhos de Política de Privacidade, Termos de Uso, contrato de operador e plano de incidentes estão em <code>docs/lgpd/</code> do repositório, aguardando revisão jurídica.</Notice>
       <Tabs value={tab} onChange={setTab} items={[{ id: "inventario", label: "Inventário de dados" }, { id: "solicitacoes", label: "Solicitações de titulares" }, { id: "incidentes", label: "Incidentes" }]} />
       {tab === "inventario" && <Table head={["Dado", "O que é tratado", "Base legal (a validar)", "Retenção (a definir)"]}>{INVENTORY.map((r) => <tr key={r[0]}>{r.map((c) => <Td key={c}>{c}</Td>)}</tr>)}</Table>}
       {tab !== "inventario" && (
