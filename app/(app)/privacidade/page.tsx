@@ -11,6 +11,7 @@ const INVENTORY = [
   ["Motoristas", "nome, telefone, categoria e validade da CNH", "execução de contrato de trabalho/serviço; obrigação legal", "enquanto vigorar o vínculo + prazos legais"],
   ["Clientes (contatos)", "nome, telefone, e-mail, condições de pagamento", "execução de contrato; legítimo interesse", "enquanto houver relação comercial + prazos fiscais"],
   ["Usuários do sistema", "e-mail, nome, papel de acesso", "execução de contrato", "enquanto a conta estiver ativa"],
+  ["Pedidos de cotação pelo link público", "nome, telefone, e-mail (opcional), origem, destino e carga informados pelo solicitante", "execução de procedimentos preliminares a pedido do titular", "180 dias após o pedido (apagado automaticamente)"],
   ["Localização do motorista", "coordenadas durante a viagem, só com consentimento e viagem em andamento", "consentimento (revogável a qualquer momento)", "30 dias após o registro (apagada automaticamente)"],
   ["Documentos fiscais e comprovantes", "XML, PDF, fotos e assinaturas de recebimento", "obrigação legal; execução de contrato", "prazos fiscais aplicáveis"],
 ];

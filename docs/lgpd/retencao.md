@@ -2,6 +2,7 @@
 
 | Dado | Prazo padrão | Como é aplicado |
 |---|---|---|
+| Pedidos de cotação pelo link público (`public_quote_requests`) | **180 dias** após o pedido | **Automático:** rotina diária (`purge-public-quotes`) apaga o que passou do prazo |
 | Localização do motorista (`trip_locations`) | **30 dias** após o registro | **Automático:** rotina diária no banco apaga o que passou do prazo |
 | Cadastro de motoristas | Vínculo ativo + prazos legais de trabalho/transporte | Manual (a transportadora desativa/apaga) |
 | Clientes (contatos) | Relação comercial + prazos fiscais | Manual |
